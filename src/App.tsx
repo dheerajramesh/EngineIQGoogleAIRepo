@@ -15,6 +15,7 @@ import {
   ComponentHistoryEntry,
   PreventiveMaintenanceTask,
   PMSignOffRecord,
+  AppTheme,
 } from "./types";
 import { ENGINE_PARTS } from "./data/parts";
 import {
@@ -39,9 +40,12 @@ import { AboutModal } from "./components/AboutModal";
 import { LoginView } from "./components/LoginView";
 import { FleetDashboard } from "./components/FleetDashboard";
 import { EngineeringSpecsSheet } from "./components/EngineeringSpecsSheet";
+import { ThemeToggle } from "./components/ThemeToggle";
+import { SearchGroundingModal } from "./components/SearchGroundingModal";
 import {
   Compass,
   AlertTriangle,
+  Globe,
   Clock,
   FileCheck2,
   TestTube2,
@@ -83,6 +87,36 @@ export default function App() {
       return null;
     }
   });
+
+  // 1b. App Theme State ("dark" | "light")
+  const [theme, setTheme] = useState<AppTheme>(() => {
+    try {
+      return (localStorage.getItem("engineiq_theme") as AppTheme) || "dark";
+    } catch {
+      return "dark";
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("engineiq_theme", theme);
+    } catch {
+      // ignore
+    }
+    if (theme === "light") {
+      document.documentElement.classList.add("theme-light");
+      document.documentElement.classList.remove("theme-dark");
+      document.documentElement.style.colorScheme = "light";
+    } else {
+      document.documentElement.classList.remove("theme-light");
+      document.documentElement.classList.add("theme-dark");
+      document.documentElement.style.colorScheme = "dark";
+    }
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+  };
 
   // 2. Fleet Engines State
   const [engines, setEngines] = useState<AircraftEngine[]>(() => {
@@ -272,6 +306,8 @@ export default function App() {
   // 10. Modals
   const [activeDoc, setActiveDoc] = useState<DocSnippet | null>(null);
   const [showAboutModal, setShowAboutModal] = useState(false);
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [searchModalQuery, setSearchModalQuery] = useState("");
 
   // Derived current engine
   const currentEngine = useMemo(() => {
@@ -573,13 +609,13 @@ export default function App() {
 
   // If not logged in, render the Mock Login Screen
   if (!session) {
-    return <LoginView onLogin={handleLogin} />;
+    return <LoginView onLogin={handleLogin} theme={theme} onToggleTheme={toggleTheme} />;
   }
 
   // If logged in but no engine selected, render Fleet Dashboard
   if (!currentEngineId || !currentEngine) {
     return (
-      <div className="relative min-h-screen w-screen bg-[#070b14] overflow-hidden">
+      <div className={`relative min-h-screen w-screen overflow-hidden transition-colors duration-300 ${theme === "light" ? "bg-[#f8fafc]" : "bg-[#070b14]"}`}>
         {/* Live Incident Toast Banner */}
         {liveToast && (
           <div className="fixed top-10 right-4 sm:right-6 z-50 animate-bounce-short max-w-md w-full">
@@ -632,6 +668,8 @@ export default function App() {
           onOpenCitation={handleOpenCitation}
           onLogout={handleLogout}
           initialFlightNumber={selectedFlightNumber}
+          theme={theme}
+          onToggleTheme={toggleTheme}
           onFlightChange={(fNum) => {
             setSelectedFlightNumber(fNum);
             try {
@@ -684,7 +722,7 @@ export default function App() {
 
   // Render the Engine Workspace for the currently selected engine
   return (
-    <div className="flex flex-col h-screen w-screen bg-[#070b14] text-slate-100 overflow-hidden font-sans">
+    <div className={`flex flex-col h-screen w-screen text-slate-100 overflow-hidden font-sans transition-colors duration-300 ${theme === "light" ? "bg-[#f8fafc]" : "bg-[#070b14]"}`}>
       {/* 1. Permanent Required Compliance Banner on Every Screen */}
       <div className="w-full bg-amber-500/10 border-b border-amber-500/30 px-4 py-1.5 flex items-center justify-between text-xs text-amber-300 select-none z-30 shrink-0">
         <div className="flex items-center gap-2">
@@ -703,7 +741,7 @@ export default function App() {
       </div>
 
       {/* 2. Persistent Navigation Header & Engine Context Strip */}
-      <header className="h-14 bg-slate-950/90 border-b border-slate-800 px-3 sm:px-4 flex items-center justify-between z-20 shrink-0">
+      <header className={`h-14 border-b px-3 sm:px-4 flex items-center justify-between z-20 shrink-0 transition-colors duration-300 ${theme === "light" ? "bg-white/95 border-slate-200" : "bg-slate-950/90 border-slate-800"}`}>
         <div className="flex items-center gap-3 sm:gap-5">
           {/* Back to Flight Operations Button */}
           <button
@@ -728,7 +766,7 @@ export default function App() {
             )}
 
             {/* Desktop Segmented Toggle for the Aircraft's Twin Engines */}
-            <div className="hidden sm:inline-flex items-center p-1 bg-slate-900/90 rounded-xl border border-slate-800 shadow-sm gap-1">
+            <div className="hidden lg:inline-flex items-center p-1 bg-slate-900/90 rounded-xl border border-slate-800 shadow-sm gap-1">
               {flightEngines.map((eng) => {
                 const isCurrent = eng.id === currentEngine.id;
                 const isAction = eng.status === "action_required";
@@ -759,7 +797,7 @@ export default function App() {
                       }`}
                     />
                     <span>{eng.enginePosition}</span>
-                    <span className="text-[10px] opacity-80 font-normal hidden md:inline">({wingLabel})</span>
+                    <span className="text-[10px] opacity-80 font-normal hidden xl:inline">({wingLabel})</span>
                     <span
                       className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
                         isCurrent
@@ -778,21 +816,28 @@ export default function App() {
               })}
             </div>
 
-            {/* Mobile Dropdown (strictly scoped to the aircraft's 2 engines) */}
-            <div className="sm:hidden relative">
-              <select
-                id="select-engine-switcher"
-                value={currentEngine.id}
-                onChange={(e) => handleSelectEngine(e.target.value)}
-                className="bg-slate-900 border border-slate-700 hover:border-sky-500/50 text-xs font-mono font-bold text-white rounded-lg pl-2.5 pr-7 py-1.5 focus:outline-none focus:border-sky-500 cursor-pointer appearance-none"
-              >
-                {flightEngines.map((eng) => (
-                  <option key={eng.id} value={eng.id}>
-                    {eng.enginePosition} ({eng.enginePosition === "No.1" ? "Left Wing" : "Right Wing"}) — {eng.status === "action_required" ? "⚠ ACTION" : eng.status === "watch" ? "• WATCH" : "OK"} ({eng.cyclesSinceNew.toLocaleString()} cyc)
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-2 pointer-events-none" />
+            {/* Dedicated Engine Options Dropdown (Strictly scoped to the aircraft's 2 engines) */}
+            <div className="relative flex items-center gap-1.5">
+              <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider font-bold hidden sm:inline lg:hidden">
+                Engine Options:
+              </span>
+              <div className="relative">
+                <select
+                  id="select-engine-switcher"
+                  aria-label="Engine Options"
+                  title="Engine Options (strictly scoped to the 2 engines of this flight)"
+                  value={currentEngine.id}
+                  onChange={(e) => handleSelectEngine(e.target.value)}
+                  className="bg-slate-900 border border-slate-700 hover:border-sky-500/50 text-xs font-mono font-bold text-white rounded-lg pl-2.5 pr-7 py-1.5 focus:outline-none focus:border-sky-500 cursor-pointer appearance-none"
+                >
+                  {flightEngines.map((eng) => (
+                    <option key={eng.id} value={eng.id}>
+                      {eng.enginePosition} ({eng.enginePosition === "No.1" ? "Left Wing" : "Right Wing"}) — {eng.status === "action_required" ? "⚠ ACTION" : eng.status === "watch" ? "• WATCH" : "OK"} ({eng.cyclesSinceNew.toLocaleString()} cyc)
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-2 pointer-events-none" />
+              </div>
             </div>
 
             {/* Status Pill Badge */}
@@ -843,6 +888,23 @@ export default function App() {
 
         {/* Header Right Actions */}
         <div className="flex items-center gap-2">
+          {/* Live AD & OEM Search Grounding Button (gemini-3.8-flash with googleSearch) */}
+          <button
+            id="btn-open-search-grounding-top"
+            onClick={() => {
+              setSearchModalQuery(`Pratt Whitney PW1100G ${currentEngine.enginePosition} engine airworthiness directives`);
+              setIsSearchModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-sky-300 hover:text-white bg-sky-950/80 hover:bg-sky-900/80 rounded-lg border border-sky-800 transition font-mono shadow-sm cursor-pointer"
+            title="Search live FAA/EASA ADs and OEM Bulletins with Google Search Grounding"
+          >
+            <Globe className="w-3.5 h-3.5 text-sky-400 animate-pulse" />
+            <span className="hidden lg:inline">Live AD Search</span>
+            <span className="lg:hidden">ADs</span>
+          </button>
+
+          {/* Whiteboard / Dark HUD Toggle */}
+          <ThemeToggle theme={theme} onToggle={toggleTheme} />
 
           <button
             id="btn-open-about"
@@ -942,6 +1004,8 @@ export default function App() {
           </div>
           <PreventiveMaintenanceView
             currentEngine={currentEngine}
+            flightEngines={flightEngines}
+            onSelectEngine={handleSelectEngine}
             tasks={preventiveTasks}
             onSignOffTask={handleSignOffPMTask}
             onInspectIn3D={(partId) => {
@@ -985,6 +1049,7 @@ export default function App() {
               allowMultiSelect={false}
               multiSelectedParts={multiSelectedParts}
               onToggleMultiSelectPart={handleToggleMultiSelect}
+              theme={theme}
             />
           </div>
 
@@ -1023,6 +1088,10 @@ export default function App() {
               tailNumber={currentEngine.tailNumber}
               userRole={session.role}
               userName={session.name}
+              onOpenSearchGrounding={(q) => {
+                if (q) setSearchModalQuery(q);
+                setIsSearchModalOpen(true);
+              }}
             />
           )}
 
@@ -1234,6 +1303,11 @@ export default function App() {
       {/* 5. Global Modals */}
       <CitationModal doc={activeDoc} onClose={() => setActiveDoc(null)} />
       <AboutModal isOpen={showAboutModal} onClose={() => setShowAboutModal(false)} />
+      <SearchGroundingModal
+        isOpen={isSearchModalOpen}
+        onClose={() => setIsSearchModalOpen(false)}
+        initialQuery={searchModalQuery}
+      />
     </div>
   );
 }

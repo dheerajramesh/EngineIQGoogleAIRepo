@@ -252,6 +252,66 @@ Provide structured, cited feedback for the trainee explaining why specific adjac
   }
 });
 
+// Endpoint 5: Search Grounded Intelligence (FAA/EASA ADs, OEM Bulletins, Live Propulsion Regulatory Data via Google Search)
+app.post("/api/gemini/search-grounded-intel", async (req, res) => {
+  try {
+    const { query, context } = req.body;
+    const ai = getGeminiClient();
+
+    if (!ai) {
+      return res.status(503).json({
+        error: "NO_API_KEY",
+        message: "No GEMINI_API_KEY configured. Fallback sample will be used.",
+      });
+    }
+
+    const systemInstruction =
+      "You are an expert aerospace maintenance and airworthiness intelligence assistant for EngineIQ and IndiGo Airlines engineering. " +
+      "Use Google Search to retrieve the latest, up-to-date FAA Airworthiness Directives (ADs), EASA Emergency ADs, DGCA India regulatory notices, Pratt & Whitney PW1100G-JM Service Bulletins (SBs), and OEM propulsion engineering updates. " +
+      "Provide factual, technical answers with clear bullet points. When citing search findings, reference the relevant AD numbers, dates, and sources. " +
+      "Always conclude with: 'Certifying engineer sign-off required prior to operational aircraft release.'";
+
+    const promptText = `User Query: "${query || "Latest PW1100G airworthiness directives"}"
+Aviation Context: ${context ? JSON.stringify(context) : "Airbus A320neo / A321neo with Pratt & Whitney GTF PW1100G-JM engines (IndiGo Fleet)"}
+
+Retrieve the latest authoritative airworthiness regulations, OEM service bulletins, or operational procedures relevant to this propulsion system.`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.8-flash",
+      contents: promptText,
+      config: {
+        systemInstruction,
+        tools: [{ googleSearch: {} }],
+      },
+    });
+
+    const candidate = response.candidates?.[0];
+    const groundingMetadata = candidate?.groundingMetadata;
+    const groundingChunks = groundingMetadata?.groundingChunks || [];
+    const webSearchQueries = groundingMetadata?.webSearchQueries || [];
+
+    const sources = groundingChunks
+      .filter((chunk: any) => chunk.web?.uri)
+      .map((chunk: any) => ({
+        title: chunk.web.title || "Regulatory Source",
+        url: chunk.web.uri,
+      }));
+
+    res.json({
+      text: response.text || "No response generated.",
+      sources,
+      searchQueries: webSearchQueries,
+      isOfflineSample: false,
+    });
+  } catch (err: any) {
+    console.error("Gemini search-grounded-intel error:", err);
+    res.status(500).json({
+      error: "SEARCH_GROUNDING_FAILED",
+      message: err.message || "Failed to retrieve search-grounded intelligence",
+    });
+  }
+});
+
 // Mount Vite middleware in dev or static files in production
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {

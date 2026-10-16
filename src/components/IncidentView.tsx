@@ -41,6 +41,8 @@ import {
   GraduationCap,
   ArrowRight,
   AlertTriangle,
+  Globe,
+  Search,
 } from "lucide-react";
 
 interface IncidentViewProps {
@@ -55,6 +57,7 @@ interface IncidentViewProps {
   userRole?: string;
   userName?: string;
   onGoToTraining?: () => void;
+  onOpenSearchGrounding?: (initialQuery?: string) => void;
 }
 
 export function IncidentView({
@@ -69,6 +72,7 @@ export function IncidentView({
   userRole,
   userName,
   onGoToTraining,
+  onOpenSearchGrounding,
 }: IncidentViewProps) {
   // Form State
   const [aircraftType, setAircraftType] = useState(defaultAircraftType);
@@ -1016,6 +1020,52 @@ STATUS: Illustrative assessment. Certifying engineer sign-off required.`;
                 {renderTextWithCitations(explanationText)}
               </div>
             )}
+          </div>
+
+          {/* Live FAA & OEM Search Grounding Cross-Check */}
+          <div className="p-4 rounded-xl bg-slate-900/90 border border-sky-500/40 space-y-3 shadow-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <Globe className="w-4 h-4 text-sky-400" />
+                <span className="text-xs font-mono font-bold text-white uppercase tracking-wider">
+                  Cross-Check Live FAA/EASA ADs & OEM SBs (Google Search Grounding)
+                </span>
+              </div>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-sky-950 text-sky-400 border border-sky-800 w-fit">
+                gemini-3.8-flash • googleSearch
+              </span>
+            </div>
+
+            <p className="text-xs text-slate-300 font-sans leading-relaxed">
+              Verify whether current findings ({confirmedFindings.length > 0 ? confirmedFindings.map(f => `${formatPartName(f.part)} ${formatDamageType(f.damageType)}`).join(", ") : "engine event"}) are subject to newly published Airworthiness Directives, repetitive ultrasonic inspection mandates, or emergency fleet notices.
+            </p>
+
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <button
+                type="button"
+                id="btn-run-incident-search-grounding"
+                onClick={() => {
+                  const partsStr = confirmedFindings.map(f => formatPartName(f.part)).join(" ");
+                  const evType = extractedData?.eventType ? formatDamageType(extractedData.eventType) : "inspection";
+                  const query = `Latest FAA EASA Airworthiness Directives on PW1100G ${partsStr || "fan blade"} ${evType} limits`;
+                  onOpenSearchGrounding?.(query);
+                }}
+                className="px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-600 text-white font-mono font-bold text-xs uppercase tracking-wider transition flex items-center gap-1.5 shadow-md shadow-sky-950/40 cursor-pointer"
+              >
+                <Search className="w-3.5 h-3.5" />
+                <span>Search Web for ADs on These Findings</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onOpenSearchGrounding?.("Pratt Whitney PW1100G powder metal disk inspections FAA AD 2024-0014 limits");
+                }}
+                className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 text-xs font-mono transition cursor-pointer"
+              >
+                Check Powder Metal AD
+              </button>
+            </div>
           </div>
 
           {/* Draft Tech Log Entry with Copy Button */}

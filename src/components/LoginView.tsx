@@ -21,9 +21,13 @@ import {
   MapPin,
   Lock,
 } from "lucide-react";
+import { ThemeToggle } from "./ThemeToggle";
+import { AppTheme } from "../types";
 
 interface LoginViewProps {
   onLogin: (session: UserSession) => void;
+  theme?: AppTheme;
+  onToggleTheme?: () => void;
 }
 
 interface DemoPersona {
@@ -66,7 +70,7 @@ const DEMO_PERSONAS: DemoPersona[] = [
   },
 ];
 
-export function LoginView({ onLogin }: LoginViewProps) {
+export function LoginView({ onLogin, theme, onToggleTheme }: LoginViewProps) {
   const [selectedPersona, setSelectedPersona] = useState<DemoPersona>(DEMO_PERSONAS[0]);
   const [customName, setCustomName] = useState(DEMO_PERSONAS[0].name);
 
@@ -94,8 +98,13 @@ export function LoginView({ onLogin }: LoginViewProps) {
             ILLUSTRATIVE DATA. NOT FOR OPERATIONAL USE. Decision support only. Certifying engineer sign-off required.
           </span>
         </div>
-        <div className="hidden sm:flex items-center gap-2 text-[11px] text-amber-400/80">
-          <span>IndiGo Airline M&E Demonstration</span>
+        <div className="flex items-center gap-3">
+          {theme && onToggleTheme && (
+            <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+          )}
+          <span className="hidden sm:inline text-[11px] text-amber-400/80">
+            IndiGo Airline M&E Demonstration
+          </span>
         </div>
       </div>
 
@@ -131,9 +140,16 @@ export function LoginView({ onLogin }: LoginViewProps) {
               </div>
             </div>
 
-            <div className="text-left sm:text-right font-mono text-xs text-slate-400">
-              <span className="text-slate-500 block text-[10px] uppercase">Engine Architecture</span>
-              <span className="text-slate-200 font-bold">PW1100G-JM GTF</span>
+            <div className="flex items-center sm:flex-col sm:items-end justify-between gap-2 font-mono text-xs text-slate-400">
+              <div className="text-left sm:text-right">
+                <span className="text-slate-500 block text-[10px] uppercase">Engine Architecture</span>
+                <span className="text-slate-200 font-bold">PW1100G-JM GTF</span>
+              </div>
+              {theme && onToggleTheme && (
+                <div className="sm:mt-1">
+                  <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+                </div>
+              )}
             </div>
           </div>
 

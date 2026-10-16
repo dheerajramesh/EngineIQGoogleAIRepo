@@ -26,6 +26,8 @@ import {
   Sparkles,
   ClipboardList,
 } from "lucide-react";
+import { ThemeToggle } from "./ThemeToggle";
+import { AppTheme } from "../types";
 
 interface FlightStatusViewProps {
   flight: FlightInfo;
@@ -36,6 +38,8 @@ interface FlightStatusViewProps {
   onSelectEngine: (engineId: string, initialTab?: string) => void;
   onBackToFlights: () => void;
   onOpenCitation: (docId: string) => void;
+  theme?: AppTheme;
+  onToggleTheme?: () => void;
 }
 
 export function FlightStatusView({
@@ -47,6 +51,8 @@ export function FlightStatusView({
   onSelectEngine,
   onBackToFlights,
   onOpenCitation,
+  theme,
+  onToggleTheme,
 }: FlightStatusViewProps) {
   const engine1Cases = caseLogs.filter((c) => c.engineId === flight.engine1Id);
   const engine2Cases = caseLogs.filter((c) => c.engineId === flight.engine2Id);
@@ -70,11 +76,16 @@ export function FlightStatusView({
             </span>
           </div>
 
-          <div className="flex items-center gap-2 text-xs font-mono text-slate-400">
-            <span>Airside Station:</span>
-            <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-200 font-semibold">
-              {flight.destination.code} ({flight.destination.city})
-            </span>
+          <div className="flex items-center gap-3 text-xs font-mono">
+            {theme && onToggleTheme && (
+              <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+            )}
+            <div className="flex items-center gap-2 text-slate-400">
+              <span>Airside Station:</span>
+              <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-200 font-semibold">
+                {flight.destination.code} ({flight.destination.city})
+              </span>
+            </div>
           </div>
         </div>
 

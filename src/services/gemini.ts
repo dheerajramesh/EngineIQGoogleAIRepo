@@ -22,6 +22,18 @@ export interface GeminiTrainingResponse {
   isOfflineSample: boolean;
 }
 
+export interface GroundedSource {
+  title: string;
+  url: string;
+}
+
+export interface GeminiSearchGroundingResponse {
+  text: string;
+  sources: GroundedSource[];
+  searchQueries: string[];
+  isOfflineSample: boolean;
+}
+
 /**
  * Robust timeout fetch helper
  */
@@ -174,9 +186,133 @@ export async function getTrainingFeedback(params: {
   }
 }
 
+/**
+ * 5. SEARCH GROUNDING: Query up-to-date FAA/EASA ADs and OEM SBs via Google Search (gemini-3.8-flash)
+ */
+export async function searchGroundedIntel(
+  query: string,
+  context?: any
+): Promise<GeminiSearchGroundingResponse> {
+  try {
+    const res = await fetchWithTimeout("/api/gemini/search-grounded-intel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, context }),
+    }, 20000); // 20s timeout for search grounding
+
+    if (!res.ok) throw new Error(`Server returned ${res.status}`);
+    const json = await res.json();
+    return {
+      text: json.text || "No intelligence report generated.",
+      sources: json.sources || [],
+      searchQueries: json.searchQueries || [],
+      isOfflineSample: Boolean(json.isOfflineSample),
+    };
+  } catch (err) {
+    console.warn("Using offline sample for search grounding:", err);
+    return getOfflineSearchGroundingFallback(query);
+  }
+}
+
 // ----------------------------------------------------
 // Deterministic Fallback Sample Generators
 // ----------------------------------------------------
+
+function getOfflineSearchGroundingFallback(query: string): GeminiSearchGroundingResponse {
+  const q = (query || "").toLowerCase();
+  
+  if (q.includes("powder") || q.includes("hpc") || q.includes("disk") || q.includes("metallurgy")) {
+    return {
+      text: `### FAA & EASA Airworthiness Directives Summary: PW1100G-JM Powder Metal Disks
+      
+**Applicable Directives:** FAA AD 2024-0014 / EASA Emergency AD 2023-0211-E
+**Engine Family:** Pratt & Whitney PW1100G-JM (Airbus A320neo / A321neo fleet)
+
+1. **Mandatory Ultrasonic Inspection (USI):**
+   - Requires accelerated repetitive ultrasonic inspections of High Pressure Compressor (HPC) 7th and 8th stage integrally bladed rotors (IBRs) and High Pressure Turbine (HPT) 1st & 2nd stage disks manufactured from contaminated powdered metal.
+   - Initial threshold: Between 2,800 and 3,800 flight cycles depending on batch metallurgy serial numbers.
+
+2. **Fleet Grounding & Removal Schedules:**
+   - Disks exceeding flight cycle thresholds without completed USI must be removed from wing prior to further flight.
+   - Non-destructive inspection (NDI) must be performed at certified OEM overhaul base (IndiGo Delhi / Singapore Pratt & Whitney Eagle Services Asia).
+
+3. **IndiGo Airlines Operating Impact:**
+   - Active aircraft engine rotation schedule and spares pooling activated across DEL, BOM, BLR hubs.
+   - Certifying engineer sign-off required prior to operational release.`,
+      sources: [
+        { title: "FAA Airworthiness Directive 2024-0014 - Pratt & Whitney Engines", url: "https://rgl.faa.gov/Regulatory_and_Guidance_Library/rgad.nsf" },
+        { title: "EASA Safety Publications Tool - AD 2023-0211-E", url: "https://ad.easa.europa.eu/" },
+        { title: "Pratt & Whitney GTF Powder Metal Fleet Management Update", url: "https://prattwhitney.com/" },
+      ],
+      searchQueries: [
+        "FAA AD PW1100G powder metal disk inspection 2024",
+        "EASA emergency airworthiness directive PW1100G HPC turbine",
+        "Pratt Whitney service bulletin A320neo powder metallurgy",
+      ],
+      isOfflineSample: true,
+    };
+  }
+
+  if (q.includes("bird") || q.includes("fan") || q.includes("blade") || q.includes("fod")) {
+    return {
+      text: `### Live OEM & Regulatory Dispatch Notice: PW1100G Fan Blade Damage & Bird Strike Limits
+      
+**Governing Documents:** FAA Special Airworthiness Information Bulletin (SAIB) & Pratt & Whitney AMM 72-31-00
+**Fleet Applicability:** IndiGo Airbus A320neo / A321neo PW1100G-JM
+
+1. **Immediate Post-Bird Strike Protocol:**
+   - Borescope inspection of all 20 hybrid titanium fan blades and fan case abradable acoustic liners within 1 flight cycle of reported bird strike.
+   - Check fan blade leading edge: Maximum permissible leading edge nick depth without repair is **0.050 in (1.27 mm)** in Zone A. Nicks between 0.050 in and 0.125 in require blend repair per AMM 72-31-02 before further revenue flight.
+
+2. **Fan Drive Gear System (FDGS) Torque & Vibration Verification:**
+   - If bird remains enter core flow or LP compressor, perform oil scavenge magnetic chip detector (MCD) inspection and FDGS oil filter differential pressure check.
+   - Dual-channel vibration telemetry review via EngineIQ dashboard before dispatch.
+
+3. **Regulatory Sign-off:**
+   - DGCA India CAR Section 2 Series E requires CRS (Certificate of Release to Service) entry with blend dimensions and remaining thickness measurement.
+   - Certifying engineer sign-off required prior to operational release.`,
+      sources: [
+        { title: "FAA Special Airworthiness Information Bulletin - Turbine Engine Ingestion", url: "https://www.faa.gov/aircraft/safety/alerts/saib/" },
+        { title: "Pratt & Whitney PW1100G Aircraft Maintenance Manual (AMM 72-31-00)", url: "https://prattwhitney.com/" },
+        { title: "DGCA India CAR Section 2 - Airworthiness Certification Requirements", url: "https://www.dgca.gov.in/" },
+      ],
+      searchQueries: [
+        "PW1100G bird strike inspection blend limits AMM",
+        "FAA fan blade nick limits Pratt Whitney GTF",
+        "DGCA India A320neo bird ingestion maintenance directive",
+      ],
+      isOfflineSample: true,
+    };
+  }
+
+  return {
+    text: `### Up-to-Date Airworthiness & OEM Intelligence: Pratt & Whitney PW1100G-JM
+
+**Fleet:** IndiGo Airlines Airbus A320neo / A321neo GTF Propulsion
+**Regulatory Bodies:** FAA / EASA / DGCA India
+
+1. **Current Regulatory Directives:**
+   - All line operations must comply with latest Pratt & Whitney Service Bulletins (SB 72-00-0016 and SB 72-00-0021) for active oil scavenge monitoring and vibration thresholds.
+   - Turnaround station engineers must verify magnetic chip detector (MCD) cleanliness and review tech logbook pilot reports for anomalous N1/N2 vibration spikes.
+
+2. **Life-Limited Parts (LLP) Tracking:**
+   - Strict adherence to FAA AD cycle limits on high-pressure compressor (HPC) and high-pressure turbine (HPT) components.
+   - Worst-part LLP cycle threshold enforced at 18,000 cycles.
+
+3. **Compliance Requirement:**
+   - Certifying engineer sign-off required prior to operational release.`,
+    sources: [
+      { title: "FAA Regulatory and Guidance Library - Airworthiness Directives", url: "https://rgl.faa.gov/" },
+      { title: "EASA Safety Publications Portal", url: "https://ad.easa.europa.eu/" },
+      { title: "DGCA India Civil Aviation Requirements (CAR)", url: "https://www.dgca.gov.in/" },
+    ],
+    searchQueries: [
+      `PW1100G airworthiness directives ${query}`,
+      "A320neo Pratt Whitney GTF maintenance bulletins",
+    ],
+    isOfflineSample: true,
+  };
+}
 
 function getOfflineExtractionFallback(
   narrative: string,

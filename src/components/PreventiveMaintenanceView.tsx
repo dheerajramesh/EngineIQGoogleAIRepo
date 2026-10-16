@@ -29,6 +29,8 @@ import {
 
 interface PreventiveMaintenanceViewProps {
   currentEngine: AircraftEngine;
+  flightEngines?: AircraftEngine[];
+  onSelectEngine?: (engineId: string) => void;
   tasks: PreventiveMaintenanceTask[];
   onSignOffTask: (taskId: string, record: PMSignOffRecord) => void;
   onInspectIn3D: (partId: PartId) => void;
@@ -36,6 +38,8 @@ interface PreventiveMaintenanceViewProps {
 
 export const PreventiveMaintenanceView: React.FC<PreventiveMaintenanceViewProps> = ({
   currentEngine,
+  flightEngines,
+  onSelectEngine,
   tasks,
   onSignOffTask,
   onInspectIn3D,
@@ -179,6 +183,27 @@ export const PreventiveMaintenanceView: React.FC<PreventiveMaintenanceViewProps>
             <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-slate-800 text-amber-300">
               {engineCycles.toLocaleString()} CSN • {engineHours.toLocaleString()} FH
             </span>
+
+            {/* Twin Engine Quick Selector strictly scoped to aircraft */}
+            {flightEngines && flightEngines.length > 0 && onSelectEngine && (
+              <div className="flex items-center gap-1 p-0.5 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono">
+                <span className="text-[10px] text-slate-400 uppercase font-semibold px-1.5 hidden sm:inline">Engine Options:</span>
+                {flightEngines.map((eng) => (
+                  <button
+                    key={eng.id}
+                    onClick={() => onSelectEngine(eng.id)}
+                    className={`px-2.5 py-0.5 rounded-lg transition font-medium cursor-pointer ${
+                      eng.id === currentEngine.id
+                        ? "bg-sky-500 text-white font-bold shadow"
+                        : "text-slate-400 hover:text-white hover:bg-slate-800"
+                    }`}
+                    title={`Switch to ${eng.enginePosition} (${eng.enginePosition === "No.1" ? "Left Wing" : "Right Wing"})`}
+                  >
+                    {eng.enginePosition} ({eng.enginePosition === "No.1" ? "Left" : "Right"})
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
             <Wrench className="w-6 h-6 text-sky-400" />

@@ -50,7 +50,7 @@ html.theme-light body,
   color: #0f172a !important;
 }
 
-/* Core background conversions */
+/* 1. Core Background Conversions (Eliminating dark navy & muddy grey patches) */
 .theme-light .bg-\[\#050a14\],
 .theme-light .bg-\[\#070b14\],
 .theme-light .bg-\[\#090d16\],
@@ -61,23 +61,30 @@ html.theme-light body,
 .theme-light .bg-slate-900,
 .theme-light .bg-slate-900\/90,
 .theme-light .bg-slate-900\/95,
+.theme-light .bg-slate-900\/85,
 .theme-light .bg-slate-900\/80 {
   background-color: #ffffff !important;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.06), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
 }
 
 .theme-light .bg-slate-950\/80,
 .theme-light .bg-slate-950\/90,
 .theme-light .bg-slate-950\/60,
 .theme-light .bg-slate-950\/95 {
+  background-color: #ffffff !important;
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+}
+
+/* 2. Harmonious Light Greys & Surfaces */
+.theme-light .bg-slate-800,
+.theme-light .bg-slate-800\/60,
+.theme-light .bg-slate-800\/80 {
   background-color: #f1f5f9 !important;
+  color: #1e293b !important;
 }
 
-.theme-light .bg-slate-800 {
-  background-color: #e2e8f0 !important;
-}
-
-.theme-light .hover\:bg-slate-800:hover {
+.theme-light .hover\:bg-slate-800:hover,
+.theme-light .hover\:bg-slate-800\/80:hover {
   background-color: #e2e8f0 !important;
 }
 
@@ -85,18 +92,30 @@ html.theme-light body,
   background-color: #f1f5f9 !important;
 }
 
-/* Borders */
+/* 3. Dark Gradients Converted into Harmonious Daylight Aerospace Gradients */
+.theme-light [class*="via-\[\#071330\]"],
+.theme-light [class*="to-\[\#071330\]"],
+.theme-light [class*="to-\[\#14080c\]"],
+.theme-light [class*="to-\[\#140e06\]"],
+.theme-light [class*="to-indigo-950"],
+.theme-light [class*="to-slate-950"] {
+  background-image: linear-gradient(135deg, #ffffff 0%, #f8fafc 55%, #eff6ff 100%) !important;
+  background-color: #ffffff !important;
+}
+
+/* 4. Crisp Subtle Borders */
 .theme-light .border-slate-800,
 .theme-light .border-slate-800\/80,
+.theme-light .border-slate-800\/90,
 .theme-light .border-slate-800\/60,
 .theme-light .border-slate-700,
 .theme-light .border-slate-700\/80,
-.theme-light .border-slate-700\/60 {
-  border-color: #cbd5e1 !important;
+.theme-light .border-slate-700\/60,
+.theme-light .border-slate-700\/50 {
+  border-color: #e2e8f0 !important;
 }
 
-/* Typography contrast */
-.theme-light .text-white,
+/* 5. Typography Contrast: High Legibility Text */
 .theme-light .text-slate-100,
 .theme-light .text-slate-200 {
   color: #0f172a !important;
@@ -114,7 +133,103 @@ html.theme-light body,
   color: #64748b !important;
 }
 
-/* Form controls */
+/* Base text-white becomes dark slate on light cards */
+.theme-light .text-white {
+  color: #0f172a !important;
+}
+
+/* CRITICAL FIX FOR FONT VISIBILITY: All solid buttons, pills & colored badges retain pure white text */
+.theme-light .bg-sky-500,
+.theme-light .bg-sky-600,
+.theme-light .bg-blue-600,
+.theme-light .bg-blue-700,
+.theme-light .bg-rose-500,
+.theme-light .bg-rose-600,
+.theme-light .bg-emerald-600,
+.theme-light .bg-indigo-600,
+.theme-light .bg-\[\#001b94\],
+.theme-light button.bg-sky-500,
+.theme-light button.bg-sky-600,
+.theme-light button.bg-rose-600,
+.theme-light [class*="bg-sky-500"],
+.theme-light [class*="bg-sky-600"],
+.theme-light [class*="bg-rose-600"],
+.theme-light [class*="bg-\[\#001b94\]"] {
+  color: #ffffff !important;
+}
+
+.theme-light .bg-sky-500 *,
+.theme-light .bg-sky-600 *,
+.theme-light .bg-blue-600 *,
+.theme-light .bg-rose-600 *,
+.theme-light .bg-emerald-600 *,
+.theme-light .bg-\[\#001b94\] *,
+.theme-light .bg-sky-500 .text-white,
+.theme-light .bg-sky-600 .text-white,
+.theme-light .bg-blue-600 .text-white,
+.theme-light .bg-rose-600 .text-white,
+.theme-light .bg-emerald-600 .text-white,
+.theme-light .bg-\[\#001b94\] .text-white,
+.theme-light [class*="bg-sky-500"] .text-white,
+.theme-light [class*="bg-sky-600"] .text-white,
+.theme-light [class*="bg-blue-600"] .text-white,
+.theme-light [class*="bg-rose-600"] .text-white,
+.theme-light [class*="bg-\[\#001b94\]"] .text-white {
+  color: #ffffff !important;
+}
+
+/* Hovering inactive tabs turns to crisp aviation blue */
+.theme-light .hover\:text-white:hover {
+  color: #0284c7 !important;
+}
+
+/* 6. Cohesive Aviation Blue & Cyan Harmonization (Matching IndiGo Blue Palette) */
+.theme-light .text-sky-400,
+.theme-light .text-sky-300,
+.theme-light .text-cyan-400,
+.theme-light .text-cyan-300 {
+  color: #0284c7 !important;
+}
+
+.theme-light .text-blue-400,
+.theme-light .text-blue-300 {
+  color: #1d4ed8 !important;
+}
+
+/* Sky & Blue Tinted Badges / Sub-containers */
+.theme-light .bg-blue-950,
+.theme-light .bg-blue-950\/80,
+.theme-light .bg-sky-950,
+.theme-light .bg-sky-950\/80,
+.theme-light .bg-sky-500\/10,
+.theme-light .bg-sky-500\/20 {
+  background-color: #eff6ff !important;
+  color: #0284c7 !important;
+  border-color: #bfdbfe !important;
+}
+
+.theme-light .border-blue-800,
+.theme-light .border-blue-800\/80,
+.theme-light .border-sky-800,
+.theme-light .border-sky-800\/60,
+.theme-light .border-sky-500\/30,
+.theme-light .border-sky-500\/40 {
+  border-color: #bfdbfe !important;
+}
+
+/* 6E Logo badge styling */
+.theme-light .bg-\[\#070e24\] {
+  background-color: #001b94 !important;
+  color: #ffffff !important;
+}
+.theme-light .bg-\[\#070e24\] .text-sky-400 {
+  color: #ffffff !important;
+}
+.theme-light .bg-\[\#070e24\] .text-slate-300 {
+  color: #bfdbfe !important;
+}
+
+/* 7. Form Controls */
 .theme-light input,
 .theme-light select,
 .theme-light textarea {
@@ -128,7 +243,12 @@ html.theme-light body,
   color: #94a3b8 !important;
 }
 
-/* Status Badges & Callouts */
+.theme-light select option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+/* 8. Status Badges & Alert Callouts */
 .theme-light .bg-rose-950,
 .theme-light .bg-rose-950\/80,
 .theme-light .bg-rose-950\/40,
@@ -144,8 +264,8 @@ html.theme-light body,
 .theme-light .border-rose-700,
 .theme-light .border-rose-800,
 .theme-light .border-rose-800\/80,
-.theme-light .border-rose-800\/60 {
-  border-color: #f43f5e !important;
+.theme-light .border-rose-500\/60 {
+  border-color: #fecdd3 !important;
 }
 
 .theme-light .bg-amber-950,
@@ -163,8 +283,8 @@ html.theme-light body,
 .theme-light .border-amber-700,
 .theme-light .border-amber-800,
 .theme-light .border-amber-800\/80,
-.theme-light .border-amber-800\/60 {
-  border-color: #f59e0b !important;
+.theme-light .border-amber-500\/50 {
+  border-color: #fde68a !important;
 }
 
 .theme-light .bg-emerald-950,
@@ -181,26 +301,8 @@ html.theme-light body,
 }
 .theme-light .border-emerald-700,
 .theme-light .border-emerald-800,
-.theme-light .border-emerald-800\/80,
-.theme-light .border-emerald-800\/60 {
-  border-color: #10b981 !important;
-}
-
-.theme-light .bg-blue-950,
-.theme-light .bg-blue-950\/80,
-.theme-light .bg-sky-950,
-.theme-light .bg-sky-950\/80 {
-  background-color: #f0f9ff !important;
-}
-.theme-light .text-sky-300,
-.theme-light .text-sky-400 {
-  color: #0369a1 !important;
-}
-.theme-light .border-blue-800,
-.theme-light .border-blue-800\/80,
-.theme-light .border-sky-800,
-.theme-light .border-sky-800\/60 {
-  border-color: #0284c7 !important;
+.theme-light .border-emerald-800\/80 {
+  border-color: #a7f3d0 !important;
 }
 
 .theme-light .bg-indigo-950,
@@ -214,10 +316,10 @@ html.theme-light body,
 }
 .theme-light .border-indigo-800,
 .theme-light .border-indigo-800\/60 {
-  border-color: #6366f1 !important;
+  border-color: #c7d2fe !important;
 }
 
-/* Light scrollbar */
+/* 9. Light scrollbar */
 .theme-light ::-webkit-scrollbar-track {
   background: rgba(241, 245, 249, 0.9);
 }

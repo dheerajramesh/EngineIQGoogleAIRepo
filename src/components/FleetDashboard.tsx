@@ -4,12 +4,14 @@
  */
 
 import React, { useState, useMemo } from "react";
-import { AircraftEngine, CaseLogEntry, UserSession, FlightInfo } from "../types";
+import { AircraftEngine, CaseLogEntry, UserSession, FlightInfo, AppTheme } from "../types";
 import { WORST_LLP_CYCLE_LIMIT, FLEET_LOCATIONS } from "../data/fleet";
 import { INDIGO_FLIGHTS } from "../data/flights";
 import { FlightStatusView } from "./FlightStatusView";
 import { SimulateIncidentModal } from "./SimulateIncidentModal";
 import { EvaluationView } from "./EvaluationView";
+import { ThemeToggle } from "./ThemeToggle";
+import { SearchGroundingModal } from "./SearchGroundingModal";
 import {
   ShieldAlert,
   Plane,
@@ -19,6 +21,7 @@ import {
   AlertCircle,
   FileText,
   Search,
+  Globe,
   Filter,
   ArrowRight,
   LogOut,
@@ -53,6 +56,8 @@ interface FleetDashboardProps {
   onLogout: () => void;
   initialFlightNumber?: string | null;
   onFlightChange?: (flightNumber: string | null) => void;
+  theme?: AppTheme;
+  onToggleTheme?: () => void;
 }
 
 export function FleetDashboard({
@@ -65,6 +70,8 @@ export function FleetDashboard({
   onLogout,
   initialFlightNumber = null,
   onFlightChange,
+  theme,
+  onToggleTheme,
 }: FleetDashboardProps) {
   // Selected flight for detailed flight status view
   const [selectedFlightNumber, setSelectedFlightNumber] = useState<string | null>(initialFlightNumber);
@@ -97,6 +104,22 @@ export function FleetDashboard({
 
   // Simulate Incident Modal state
   const [isSimulateModalOpen, setIsSimulateModalOpen] = useState(false);
+
+  // Search Grounding Modal state (gemini-3.8-flash with googleSearch)
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [searchModalInitialQuery, setSearchModalInitialQuery] = useState("");
+
+  // Engines strictly scoped for simulation when a flight is active
+  const modalEngines = useMemo(() => {
+    if (selectedFlightNumber) {
+      const flight = INDIGO_FLIGHTS.find((f) => f.flightNumber === selectedFlightNumber);
+      if (flight) {
+        const flightEngs = engines.filter((e) => e.id === flight.engine1Id || e.id === flight.engine2Id);
+        if (flightEngs.length > 0) return flightEngs;
+      }
+    }
+    return engines;
+  }, [selectedFlightNumber, engines]);
 
   // Filtered Flights List
   const filteredFlights = useMemo(() => {
@@ -252,6 +275,8 @@ export function FleetDashboard({
             onFlightChange?.(null);
           }}
           onOpenCitation={onOpenCitation}
+          theme={theme}
+          onToggleTheme={onToggleTheme}
         />
       </div>
     );
@@ -353,6 +378,21 @@ export function FleetDashboard({
             </button>
           </nav>
 
+          {/* Live AD & OEM Search Grounding Button (Google Search Grounding) */}
+          <button
+            id="btn-open-search-grounding"
+            onClick={() => {
+              setSearchModalInitialQuery("Latest FAA and EASA Airworthiness Directives on Pratt Whitney PW1100G powder metal HPC disks inspection intervals");
+              setIsSearchModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-950/90 hover:bg-sky-900/90 text-sky-300 hover:text-white border border-sky-800 text-xs font-mono font-bold transition cursor-pointer shadow-sm"
+            title="Search live FAA/EASA Airworthiness Directives and OEM Service Bulletins with Google Search Grounding"
+          >
+            <Globe className="w-3.5 h-3.5 text-sky-400 animate-pulse" />
+            <span className="hidden sm:inline">Live AD Search</span>
+            <span className="sm:hidden">ADs</span>
+          </button>
+
           {/* Simulate New Incident Button */}
           <button
             id="btn-simulate-incident"
@@ -364,6 +404,11 @@ export function FleetDashboard({
             <span className="hidden lg:inline">Simulate Incident</span>
             <span className="lg:hidden">Simulate</span>
           </button>
+
+          {/* Whiteboard / Dark HUD Toggle */}
+          {theme && onToggleTheme && (
+            <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+          )}
 
           {/* User Session Chip */}
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs font-mono">
@@ -944,8 +989,15 @@ export function FleetDashboard({
       <SimulateIncidentModal
         isOpen={isSimulateModalOpen}
         onClose={() => setIsSimulateModalOpen(false)}
-        engines={engines}
+        engines={modalEngines}
         onConfirm={onSimulateIncident}
+      />
+
+      {/* Live Airworthiness & OEM Search Grounding Modal (gemini-3.8-flash with googleSearch) */}
+      <SearchGroundingModal
+        isOpen={isSearchModalOpen}
+        onClose={() => setIsSearchModalOpen(false)}
+        initialQuery={searchModalInitialQuery}
       />
     </div>
   );
