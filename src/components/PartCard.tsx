@@ -1574,259 +1574,35 @@ export function PartCard({
         </div>
       )}
 
-      {/* 8. Ask About This Part (Gemini Copilot Box with Live Google Search Grounding) */}
-      <div className="p-4 rounded-xl bg-gradient-to-b from-slate-900 to-slate-950 border border-sky-500/40 shadow-xl space-y-3.5">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-sky-500/20 text-sky-400">
-              <Sparkles className="w-4 h-4" />
-            </div>
-            <div>
-              <h4 className="text-xs font-bold text-white flex items-center gap-2">
-                <span>Ask Copilot About This Component</span>
-              </h4>
-              <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono mt-0.5">
-                <span className="text-sky-300">Gemini Free Tier</span>
-                <span>·</span>
-                <span className="text-emerald-400">Groq LPU Failover</span>
-                <span>·</span>
-                <span>Live Search</span>
-              </div>
-            </div>
+      {/* 8. Unified AI Copilot Entry Point */}
+      <div className="p-4 rounded-xl bg-gradient-to-r from-slate-900 via-slate-900/90 to-sky-950/40 border border-sky-500/40 shadow-xl flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="p-2 rounded-xl bg-sky-500/20 text-sky-400 shrink-0">
+            <Bot className="w-5 h-5" />
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Provider Selector */}
-            <div className="inline-flex items-center p-0.5 rounded-lg bg-slate-950 border border-slate-800">
-              {(
-                [
-                  { id: "auto", label: "Auto" },
-                  { id: "gemini", label: "Gemini" },
-                  { id: "groq", label: "Groq" },
-                ] as { id: AIProviderPreference; label: string }[]
-              ).map((opt) => (
-                <button
-                  key={opt.id}
-                  onClick={() => {
-                    setPreferredProvider(opt.id);
-                    try {
-                      localStorage.setItem("engineiq_preferred_ai_provider", opt.id);
-                    } catch {}
-                  }}
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-mono transition cursor-pointer ${
-                    preferredProvider === opt.id
-                      ? "bg-sky-500 text-white font-semibold"
-                      : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            {onOpenAICopilot && (
-              <button
-                onClick={() =>
-                  onOpenAICopilot(
-                    question.trim() ||
-                      `What are the AMM damage limits, troubleshooting steps, and active findings for ${part.name} on ${tailNumber}?`
-                  )
-                }
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 hover:text-white border border-sky-500/40 font-mono text-[10px] font-bold transition cursor-pointer"
-                title="Open Multi-Turn AI Copilot Drawer with Fleet + AMM + Search Context"
-              >
-                <Bot className="w-3 h-3 text-sky-400" />
-                <span>Multi-Turn Copilot</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Quick Question Chips */}
-        <div className="flex flex-wrap gap-1.5">
-          {[
-            "Latest FAA ADs on powder metal disks",
-            "What is the life retirement basis?",
-            "Primary failure modes & inspection limits",
-            "EASA ultrasonic inspection intervals",
-            "Certified alloy composition & thermal limits",
-          ].map((prompt, i) => (
-            <button
-              key={i}
-              onClick={() => {
-                setQuestion(prompt);
-                void handleAsk(prompt);
-              }}
-              className="text-[11px] text-slate-300 bg-slate-800/80 hover:bg-slate-700/80 hover:text-white px-2.5 py-1 rounded-lg border border-slate-700 transition cursor-pointer"
-            >
-              {prompt}
-            </button>
-          ))}
-        </div>
-
-        {/* Question Input */}
-        <div className="relative">
-          <input
-            id="input-part-question"
-            type="text"
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && void handleAsk()}
-            placeholder={`Ask any question about ${part.name} (routed to live Gemini Free Tier / Groq)...`}
-            className="w-full bg-slate-950/90 border border-slate-700 focus:border-sky-500 rounded-lg pl-3 pr-10 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none transition font-sans"
-          />
-          <button
-            onClick={() => void handleAsk()}
-            disabled={isAsking || !question.trim()}
-            className="absolute right-1.5 top-1.5 p-1.5 text-sky-400 hover:text-white disabled:text-slate-600 rounded-md transition cursor-pointer"
-            title="Send Query to Live AI"
-          >
-            {isAsking ? <Loader2 className="w-4 h-4 animate-spin text-sky-400" /> : <Send className="w-4 h-4" />}
-          </button>
-        </div>
-
-        {/* Live Grounding Indicator during search */}
-        {isAsking && (
-          <div className="p-3 rounded-lg bg-sky-950/40 border border-sky-800/50 flex items-center justify-between text-xs text-sky-200 font-mono">
-            <div className="flex items-center gap-2">
-              <Loader2 className="w-4 h-4 text-sky-400 animate-spin" />
-              <span>Querying Live AI ({preferredProvider.toUpperCase()} — Gemini Free Tier / Groq)...</span>
-            </div>
-          </div>
-        )}
-
-        {/* Executed Search Queries Bar */}
-        {searchQueries.length > 0 && (
-          <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/90 text-xs">
-            <div className="flex items-center gap-1.5 text-slate-400 font-mono text-[10px] mb-1">
-              <Globe className="w-3 h-3 text-sky-400" />
-              <span>Google Search Grounding Queries Executed:</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {searchQueries.map((sq, idx) => (
-                <span
-                  key={idx}
-                  className="px-2 py-0.5 rounded bg-sky-950/60 text-sky-300 border border-sky-800/50 font-mono text-[10px]"
-                >
-                  &quot;{sq}&quot;
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Strict Live AI Error Banner (No Silent Canned Data) */}
-        {apiError && (
-          <div className="p-3.5 rounded-xl bg-rose-950/40 border border-rose-500/40 text-xs text-slate-200 space-y-2.5 shadow-lg">
-            <div className="flex items-center gap-2 font-bold text-rose-300">
-              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-              <span>Live AI Request Failed (No Pre-Filled Data Substituted)</span>
-            </div>
-            <p className="text-[11px] text-slate-300 leading-relaxed font-sans">
-              {apiError.message}
+          <div>
+            <h4 className="text-xs font-bold text-white flex items-center gap-2">
+              <span>Ask AI Copilot About {part.name}</span>
+            </h4>
+            <p className="text-[11px] text-slate-300 font-sans mt-0.5">
+              Open the multi-turn AI copilot drawer for deep AMM troubleshooting, live search grounding, and LLM failover.
             </p>
-            {apiError.attemptErrors && apiError.attemptErrors.length > 0 && (
-              <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800 font-mono text-[10px] text-slate-400 space-y-1">
-                {apiError.attemptErrors.map((errLine, idx) => (
-                  <div key={idx}>• {errLine}</div>
-                ))}
-              </div>
-            )}
-            <div className="p-2.5 rounded-lg bg-sky-950/40 border border-sky-500/30 text-[11px] text-sky-200 space-y-1">
-              <div className="font-semibold text-white">
-                Configure Free Gemini or Groq Key in Settings &gt; Secrets:
-              </div>
-              <div>
-                Add <code>GROQ_API_KEY</code> (from{" "}
-                <a
-                  href="https://console.groq.com/keys"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline text-sky-300 hover:text-white"
-                >
-                  console.groq.com
-                </a>
-                ) or a free <code>GEMINI_API_KEY</code> (from{" "}
-                <a
-                  href="https://aistudio.google.com/apikey"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline text-sky-300 hover:text-white"
-                >
-                  aistudio.google.com
-                </a>
-                ) in AI Studio&apos;s <strong>Settings &gt; Secrets</strong> panel.
-              </div>
-            </div>
-            <div className="flex items-center gap-2 pt-1">
-              <button
-                onClick={() => void handleAsk()}
-                disabled={isAsking}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-white font-mono text-[11px] font-semibold transition cursor-pointer"
-              >
-                <RefreshCw className="w-3 h-3" />
-                <span>Retry Live AI</span>
-              </button>
-            </div>
           </div>
-        )}
+        </div>
 
-        {/* Answer Display */}
-        {answer && (
-          <div className="p-4 rounded-xl bg-slate-950/90 border border-slate-800 text-xs leading-relaxed text-slate-200 space-y-3 shadow-inner">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-800/80 flex-wrap gap-2">
-              <span className="font-semibold text-sky-400 flex items-center gap-1.5">
-                <HelpCircle className="w-3.5 h-3.5" /> Copilot Live Answer:
-              </span>
-              <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-400">
-                {isOfflineSample ? (
-                  <span className="text-amber-400">
-                    Offline Synthesizer (No API Keys Set)
-                  </span>
-                ) : (
-                  <>
-                    <span className="text-emerald-400 font-semibold">
-                      LIVE · {(answerProvider || "gemini").toUpperCase()} · {answerModel || "gemini-3.8-flash"}
-                    </span>
-                    {answerLatencyMs !== undefined && (
-                      <>
-                        <span>·</span>
-                        <span className="tabular-nums">{answerLatencyMs}ms</span>
-                      </>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Formatted Text with local citation badges */}
-            <div className="font-sans leading-relaxed text-slate-200 whitespace-pre-line">
-              {renderTextWithCitations(answer)}
-            </div>
-
-            {/* Grounded Web Sources (Clickable Badges) */}
-            {sources.length > 0 && (
-              <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
-                <span className="text-[10px] font-mono text-slate-400 font-semibold block">
-                  Grounded Regulatory & Technical Sources:
-                </span>
-                <div className="flex flex-wrap gap-2">
-                  {sources.map((src, i) => (
-                    <a
-                      key={i}
-                      href={src.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700/80 hover:border-sky-500/60 text-sky-300 hover:text-white transition group cursor-pointer text-[11px]"
-                      title={src.title}
-                    >
-                      <Globe className="w-3 h-3 text-emerald-400 shrink-0" />
-                      <span className="font-medium max-w-[260px] truncate">{src.title}</span>
-                      <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-sky-300 shrink-0" />
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+        {onOpenAICopilot && (
+          <button
+            onClick={() =>
+              onOpenAICopilot(
+                `What are the AMM damage limits, troubleshooting steps, and active findings for ${part.name} on ${tailNumber}?`
+              )
+            }
+            className="shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-mono font-bold text-xs shadow-md transition cursor-pointer whitespace-nowrap"
+            title="Open Multi-Turn AI Copilot Drawer"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Ask AI Copilot</span>
+          </button>
         )}
       </div>
       </>
