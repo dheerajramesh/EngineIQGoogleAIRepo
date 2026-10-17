@@ -38,6 +38,7 @@ import {
   Globe,
   ExternalLink,
   Bot,
+  ChevronDown,
 } from "lucide-react";
 
 interface PartCardProps {
@@ -86,6 +87,7 @@ export function PartCard({
   const [sources, setSources] = useState<GroundedSource[]>([]);
   const [searchQueries, setSearchQueries] = useState<string[]>([]);
   const [isOfflineSample, setIsOfflineSample] = useState(false);
+  const [apiError, setApiError] = useState<{ type: string; message: string } | null>(null);
 
   // Compute logs for this component
   const componentLogs = historyLogs.filter((log) => log.partId === part.id);
@@ -112,6 +114,7 @@ export function PartCard({
     setAnswer(null);
     setSources([]);
     setSearchQueries([]);
+    setApiError(null);
 
     try {
       const snippets = await retrieveRelevantDocuments({ partId: part.id, freeText: query }, 3);
@@ -120,9 +123,13 @@ export function PartCard({
       setSources(res.sources || []);
       setSearchQueries(res.searchQueries || []);
       setIsOfflineSample(res.isOfflineSample);
+      if (res.errorType) {
+        setApiError({ type: res.errorType, message: res.errorMessage || "" });
+      }
     } catch (err: any) {
       setAnswer("Could not reach service. Please verify network connection.");
       setIsOfflineSample(true);
+      setApiError({ type: "NETWORK_ERROR", message: err.message || "" });
     } finally {
       setIsAsking(false);
     }
@@ -150,29 +157,27 @@ export function PartCard({
 
   return (
     <div className="space-y-4 animate-fade-in text-slate-200">
-      {/* Component Selector & Global Baseline Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono shadow-md">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Subsystem:</span>
-          <select
-            id="select-component-switcher"
-            value={part.id}
-            onChange={(e) => onSelectConnectedPart(e.target.value as PartId)}
-            className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-sky-300 font-bold focus:outline-none focus:border-sky-500 cursor-pointer"
-          >
-            {Object.values(ENGINE_PARTS).map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} ({p.defaultZone})
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] uppercase text-slate-400 font-medium">Global CSN:</span>
-          <span className="px-2 py-0.5 rounded bg-sky-950 text-sky-400 border border-sky-800 font-bold" title="Total Engine Flight Cycles Since New">
-            {engineCycles.toLocaleString()} cyc
-          </span>
+      {/* Component Subsystem Selector (Responsive, contained within widget) */}
+      <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono shadow-md">
+        <div className="flex items-center gap-2 w-full min-w-0">
+          <label htmlFor="select-component-switcher" className="text-[10px] uppercase tracking-wider font-bold text-slate-400 shrink-0">
+            Subsystem:
+          </label>
+          <div className="relative flex-1 min-w-0">
+            <select
+              id="select-component-switcher"
+              value={part.id}
+              onChange={(e) => onSelectConnectedPart(e.target.value as PartId)}
+              className="w-full min-w-0 bg-slate-950 border border-slate-700 hover:border-sky-500/70 rounded-lg pl-2.5 pr-7 py-1.5 text-xs text-sky-300 font-bold focus:outline-none focus:border-sky-500 cursor-pointer truncate appearance-none transition shadow-inner"
+            >
+              {Object.values(ENGINE_PARTS).map((p) => (
+                <option key={p.id} value={p.id} className="bg-slate-950 text-slate-200">
+                  {p.name} ({p.defaultZone})
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-2.5 pointer-events-none" />
+          </div>
         </div>
       </div>
 
@@ -202,7 +207,7 @@ export function PartCard({
         </div>
       </div>
 
-      {/* Sub-Navigation Tabs: Specs vs Preventive vs Life Tracker vs History */}
+      {/* Sub-Navigation Tabs: Specs vs Predictive vs Life Tracker vs History */}
       <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono shadow-sm">
         <button
           id="tab-part-specs"
@@ -226,11 +231,11 @@ export function PartCard({
               ? "bg-sky-500 text-white font-bold shadow"
               : "text-slate-400 hover:text-white"
           }`}
-          title="Component-wise scheduled preventive maintenance & AMM inspection intervals"
+          title="Component-wise scheduled predictive maintenance & AMM inspection intervals"
         >
           <Wrench className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Preventive</span>
-          <span className="sm:hidden">PM</span>
+          <span className="hidden sm:inline">Predictive</span>
+          <span className="sm:hidden">PdM</span>
           <span
             className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
               cardTab === "preventive"
@@ -702,10 +707,43 @@ export function PartCard({
           </div>
         )}
 
+        {/* API Credit Warning Banner */}
+        {apiError?.type === "CREDITS_DEPLETED" && (
+          <div className="p-3.5 rounded-xl bg-amber-950/80 border border-amber-800/80 text-xs text-amber-200 space-y-2 shadow-lg">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2 font-bold text-amber-300">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>Gemini API Prepayment Credits Depleted (HTTP 402)</span>
+              </div>
+              <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-amber-900/80 text-amber-300 border border-amber-700/60 font-semibold shrink-0">
+                Fallback Engine Active
+              </span>
+            </div>
+            <p className="text-[11px] text-amber-100/90 leading-relaxed font-sans">
+              The Google Cloud project linked in AI Studio has exhausted its prepayment credits for live Gemini 3.8 Flash & Google Search.
+              To avoid empty errors, <strong>EngineIQ On-Wing Knowledge Engine</strong> has dynamically analyzed your question and synthesized the authentic engineering response below.
+            </p>
+            <div className="flex items-center gap-2 pt-1 flex-wrap">
+              <a
+                href="https://ai.google.dev/gemini-api/docs/billing#prepay"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold text-[11px] transition shadow cursor-pointer"
+              >
+                <span>Add AI Studio Credits</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+              <span className="text-[10px] text-amber-300/80 font-mono">
+                or switch to a funded billing project in AI Studio settings
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Answer Display */}
         {answer && (
           <div className="p-4 rounded-xl bg-slate-950/90 border border-slate-800 text-xs leading-relaxed text-slate-200 space-y-3 shadow-inner">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800/80 flex-wrap gap-2">
               <span className="font-semibold text-sky-400 flex items-center gap-1.5">
                 <HelpCircle className="w-3.5 h-3.5" /> Copilot Grounded Answer:
               </span>
@@ -715,9 +753,15 @@ export function PartCard({
                     <Globe className="w-2.5 h-2.5" /> {sources.length} Live Sources
                   </span>
                 )}
-                {isOfflineSample && (
-                  <span className="text-[10px] font-mono uppercase bg-slate-800 text-amber-400 px-1.5 py-0.5 rounded border border-amber-800/50">
-                    offline sample
+                {isOfflineSample ? (
+                  <span className="text-[10px] font-mono uppercase bg-slate-900 text-amber-400 px-2 py-0.5 rounded border border-amber-800/60 flex items-center gap-1 font-semibold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                    On-Wing Knowledge Engine (Offline Mode)
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-mono uppercase bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded border border-emerald-800/60 flex items-center gap-1 font-semibold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    Live Gemini 3.8 Flash + Google Search
                   </span>
                 )}
               </div>

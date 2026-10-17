@@ -104,7 +104,7 @@ export const ComponentPreventiveTab: React.FC<ComponentPreventiveTabProps> = ({
           </div>
           <div>
             <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              Scheduled Preventive Maintenance
+              Scheduled Predictive Maintenance
               <span className="text-[10px] font-normal px-2 py-0.5 rounded bg-slate-800 text-slate-300">
                 {componentTasks.length} {componentTasks.length === 1 ? "Program" : "Programs"}
               </span>

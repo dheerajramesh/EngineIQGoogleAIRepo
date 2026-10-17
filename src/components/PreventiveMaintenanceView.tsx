@@ -217,7 +217,7 @@ export const PreventiveMaintenanceView: React.FC<PreventiveMaintenanceViewProps>
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
             <Wrench className="w-6 h-6 text-sky-400" />
-            Preventive Maintenance & Regulatory Task Dispatcher
+            Predictive Maintenance & Regulatory Task Dispatcher
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 max-w-3xl leading-relaxed">
             Continuous Airworthiness Maintenance Organisation (CAMO) tracking of Airbus A320neo AMM inspection intervals,

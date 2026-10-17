@@ -14,6 +14,7 @@ interface EngineCanvasProps {
   multiSelectedParts?: PartId[];
   onToggleMultiSelectPart?: (partId: PartId) => void;
   theme?: "dark" | "light";
+  isModalOpen?: boolean;
 }
 
 // Color palettes for statuses
@@ -567,6 +568,7 @@ function EngineScene({
   multiSelectedParts = [],
   onToggleMultiSelectPart,
   theme = "dark",
+  isModalOpen = false,
 }: {
   selectedPartId: PartId | null;
   onSelectPart: (partId: PartId) => void;
@@ -579,6 +581,7 @@ function EngineScene({
   multiSelectedParts?: PartId[];
   onToggleMultiSelectPart?: (partId: PartId) => void;
   theme?: "dark" | "light";
+  isModalOpen?: boolean;
 }) {
   const rootGroupRef = useRef<THREE.Group>(null);
   const [userInteracted, setUserInteracted] = useState(false);
@@ -654,12 +657,13 @@ function EngineScene({
               }}
             />
 
-            {/* Labels pinned to parts */}
-            {showLabels && (
+            {/* Labels pinned to parts (hidden when any modal is open and capped to z-10) */}
+            {showLabels && !isModalOpen && (
               <Html
                 position={[0, p.labelY, currentZ]}
                 center
                 distanceFactor={10}
+                zIndexRange={[10, 0]}
                 style={{ pointerEvents: "none" }}
               >
                 <div
@@ -708,6 +712,7 @@ export function EngineCanvas({
   multiSelectedParts = [],
   onToggleMultiSelectPart,
   theme = "dark",
+  isModalOpen = false,
 }: EngineCanvasProps) {
   const [isExploded, setIsExploded] = useState(false);
   const [showLabels, setShowLabels] = useState(true);
@@ -752,6 +757,7 @@ export function EngineCanvas({
           multiSelectedParts={multiSelectedParts}
           onToggleMultiSelectPart={onToggleMultiSelectPart}
           theme={theme}
+          isModalOpen={isModalOpen}
         />
 
         <OrbitControls

@@ -796,8 +796,8 @@ export function ComponentHistoryView({
         </div>
       </div>
 
-      {/* 4. Timeline Logbook List */}
-      <div className="space-y-3">
+      {/* 4. Timeline Logbook List (Scrollable Log Box with Custom Scrollbar) */}
+      <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1.5 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-900/50 rounded-xl focus:outline-none">
         {filteredLogs.length === 0 ? (
           <div className="p-8 rounded-xl bg-slate-900/40 border border-slate-800 text-center space-y-2">
             <ClipboardList className="w-8 h-8 text-slate-600 mx-auto" />

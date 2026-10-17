@@ -29,6 +29,24 @@ function getGeminiClient(): GoogleGenAI | null {
   return aiClient;
 }
 
+// Utility to detect 402 / RESOURCE_EXHAUSTED credit depletion without noisy stderr logging
+function isCreditsExhausted(err: any): boolean {
+  const str =
+    String(err?.message || "") +
+    " " +
+    String(err?.status || "") +
+    " " +
+    String(err?.code || "") +
+    " " +
+    String(err || "");
+  return (
+    str.includes("402") ||
+    str.includes("RESOURCE_EXHAUSTED") ||
+    str.includes("prepayment credits are depleted") ||
+    str.includes("Quota exceeded")
+  );
+}
+
 // Health check
 app.get("/api/health", (_req, res) => {
   res.json({
@@ -105,6 +123,14 @@ JSON schema requirements:
     const parsed = JSON.parse(cleaned);
     res.json({ data: parsed, isOfflineSample: false });
   } catch (err: any) {
+    if (isCreditsExhausted(err)) {
+      console.warn("[Gemini API] Prepayment credits depleted for extract, using offline fallback.");
+      return res.status(200).json({
+        isOfflineSample: true,
+        errorType: "CREDITS_DEPLETED",
+        data: null,
+      });
+    }
     console.error("Gemini extract error:", err);
     res.status(500).json({
       error: "EXTRACTION_FAILED",
@@ -157,6 +183,14 @@ Ensure EVERY claim cites the matching document ID like [DEMO-AMM-72-01] or [DEMO
 
     res.json({ text: response.text, isOfflineSample: false });
   } catch (err: any) {
+    if (isCreditsExhausted(err)) {
+      console.warn("[Gemini API] Prepayment credits depleted for explain, using offline fallback.");
+      return res.status(200).json({
+        isOfflineSample: true,
+        errorType: "CREDITS_DEPLETED",
+        text: null,
+      });
+    }
     console.error("Gemini explain error:", err);
     res.status(500).json({
       error: "EXPLANATION_FAILED",
@@ -227,6 +261,16 @@ Retrieve live, up-to-date FAA/EASA Airworthiness Directives, Pratt & Whitney GTF
       isOfflineSample: false,
     });
   } catch (err: any) {
+    if (isCreditsExhausted(err)) {
+      console.warn("[Gemini API] Prepayment credits depleted for part-ask, using dynamic on-wing fallback.");
+      return res.status(200).json({
+        isOfflineSample: true,
+        errorType: "CREDITS_DEPLETED",
+        message:
+          "Gemini API prepayment credits are depleted on the attached Google Cloud project. To re-enable live Google Search Grounding, renew credits or link an active project in AI Studio.",
+      });
+    }
+
     console.error("Gemini part-ask error:", err);
     res.status(500).json({
       error: "PART_QA_FAILED",
@@ -274,6 +318,14 @@ Provide structured, cited feedback for the trainee explaining why specific adjac
 
     res.json({ text: response.text, isOfflineSample: false });
   } catch (err: any) {
+    if (isCreditsExhausted(err)) {
+      console.warn("[Gemini API] Prepayment credits depleted for training-feedback, using offline fallback.");
+      return res.status(200).json({
+        isOfflineSample: true,
+        errorType: "CREDITS_DEPLETED",
+        text: null,
+      });
+    }
     console.error("Gemini training feedback error:", err);
     res.status(500).json({
       error: "TRAINING_FEEDBACK_FAILED",
@@ -334,6 +386,16 @@ Retrieve the latest authoritative airworthiness regulations, OEM service bulleti
       isOfflineSample: false,
     });
   } catch (err: any) {
+    if (isCreditsExhausted(err)) {
+      console.warn("[Gemini API] Prepayment credits depleted for search-grounded-intel, using offline fallback.");
+      return res.status(200).json({
+        isOfflineSample: true,
+        errorType: "CREDITS_DEPLETED",
+        message:
+          "Gemini API prepayment credits are depleted on the attached Google Cloud project.",
+      });
+    }
+
     console.error("Gemini search-grounded-intel error:", err);
     res.status(500).json({
       error: "SEARCH_GROUNDING_FAILED",

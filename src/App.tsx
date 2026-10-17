@@ -743,17 +743,14 @@ export default function App() {
       {/* 2. Persistent Navigation Header & Engine Context Strip */}
       <header className={`h-14 border-b px-3 sm:px-4 flex items-center justify-between z-20 shrink-0 transition-colors duration-300 ${theme === "light" ? "bg-white/95 border-slate-200" : "bg-slate-950/90 border-slate-800"}`}>
         <div className="flex items-center gap-3 sm:gap-5">
-          {/* Back to Flight Operations Button */}
+          {/* Back to Flight Operations Button (Icon only) */}
           <button
             id="btn-back-to-fleet"
             onClick={handleBackToFleet}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-semibold text-sky-400 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-sky-500/50 rounded-lg transition"
-            title="Return to IndiGo Flight Operations Schedule"
+            className="flex items-center justify-center w-8 h-8 text-sky-400 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-sky-500/50 rounded-lg transition"
+            title="Return to Flights Schedule"
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">
-              {activeFlight ? `← Flight ${activeFlight.flightNumber}` : "← Flights Schedule"}
-            </span>
+            <ArrowLeft className="w-4 h-4" />
           </button>
 
           {/* Twin-Engine Quick Switcher (Strictly scoped to the aircraft's 2 engines) */}
@@ -845,39 +842,8 @@ export default function App() {
           </div>
         </div>
 
-        {/* Global Engine Telemetry Metric in the Center of Top Nav Bar */}
-        <div className="flex items-center gap-2 sm:gap-3 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-xl shadow-sm">
-          <Gauge className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-          <div className="flex items-center gap-2 font-mono text-xs">
-            <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-wider hidden sm:inline">
-              Global Engine Cycles:
-            </span>
-            <span className="font-bold text-sky-300 tabular-nums">
-              {currentEngine.cyclesSinceNew.toLocaleString()} CSN
-            </span>
-            <span className="text-slate-600 hidden md:inline">•</span>
-            <span className="text-slate-400 tabular-nums text-[11px] hidden md:inline">
-              14,220 FH
-            </span>
-          </div>
-        </div>
-
         {/* Header Right Actions */}
         <div className="flex items-center gap-2">
-          {/* Live AD & OEM Search Grounding Button (gemini-3.8-flash with googleSearch) */}
-          <button
-            id="btn-open-search-grounding-top"
-            onClick={() => {
-              setSearchModalQuery(`Pratt Whitney PW1100G ${currentEngine.enginePosition} engine airworthiness directives`);
-              setIsSearchModalOpen(true);
-            }}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-sky-300 hover:text-white bg-sky-950/80 hover:bg-sky-900/80 rounded-lg border border-sky-800 transition font-mono shadow-sm cursor-pointer"
-            title="Search live FAA/EASA ADs and OEM Bulletins with Google Search Grounding"
-          >
-            <Globe className="w-3.5 h-3.5 text-sky-400 animate-pulse" />
-            <span className="hidden lg:inline">Live AD Search</span>
-            <span className="lg:hidden">ADs</span>
-          </button>
 
           {/* Whiteboard / Dark HUD Toggle */}
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
@@ -965,7 +931,7 @@ export default function App() {
                 CAMO Maintenance Center
               </span>
               <span className="text-slate-300 font-semibold hidden sm:inline">
-                Preventive Maintenance Schedule & Regulatory Directives
+                Predictive Maintenance Schedule & Regulatory Directives
               </span>
             </div>
             <button
@@ -1006,6 +972,7 @@ export default function App() {
               multiSelectedParts={multiSelectedParts}
               onToggleMultiSelectPart={handleToggleMultiSelect}
               theme={theme}
+              isModalOpen={showAboutModal || !!activeDoc || isSearchModalOpen}
             />
           </div>
 
@@ -1107,33 +1074,6 @@ export default function App() {
           </button>
 
           <button
-            id="tab-mode-preventive"
-            onClick={() => {
-              setActiveMode("preventive");
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition whitespace-nowrap ${
-              activeMode === "preventive"
-                ? "bg-sky-500 text-white font-bold shadow"
-                : "text-slate-400 hover:text-white hover:bg-slate-900"
-            }`}
-            title="Scheduled Preventive Maintenance, Borescope Intervals & CAMO Task Dispatcher"
-          >
-            <Wrench className="w-3.5 h-3.5 text-sky-300" />
-            <span>Preventive Maint.</span>
-            <span
-              className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                activeMode === "preventive"
-                  ? "bg-white/20 text-white"
-                  : "bg-amber-950 text-amber-300 border border-amber-800"
-              }`}
-            >
-              {preventiveTasks.filter((t) => (t.nextDueCycles - (currentEngine.cyclesSinceNew || 5120)) <= 200).length} Due
-            </span>
-          </button>
-
-          <div className="h-4 w-px bg-slate-800 mx-1 hidden sm:block" />
-
-          <button
             id="tab-mode-incident"
             onClick={() => handleModeChange("incident")}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition whitespace-nowrap ${
@@ -1145,34 +1085,6 @@ export default function App() {
           >
             <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
             <span>Incident Intake</span>
-          </button>
-
-          <button
-            id="tab-mode-caselog"
-            onClick={() => handleModeChange("caselog")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition whitespace-nowrap ${
-              activeMode === "caselog"
-                ? "bg-sky-500 text-white font-semibold shadow"
-                : "text-slate-400 hover:text-white hover:bg-slate-900"
-            }`}
-            title="Audit trail and evaluated maintenance case logs"
-          >
-            <FileCheck2 className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Case Log ({currentEngine.openCaseIds.length})</span>
-          </button>
-
-          <button
-            id="tab-mode-evaluation"
-            onClick={() => handleModeChange("evaluation")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition whitespace-nowrap ${
-              activeMode === "evaluation"
-                ? "bg-sky-500 text-white font-semibold shadow"
-                : "text-slate-400 hover:text-white hover:bg-slate-900"
-            }`}
-            title="Evaluate deterministic rules against benchmark incidents"
-          >
-            <TestTube2 className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Evaluation (EVAL)</span>
           </button>
         </nav>
 

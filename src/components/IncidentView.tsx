@@ -1088,7 +1088,7 @@ STATUS: Illustrative assessment. Certifying engineer sign-off required.`;
               rows={4}
               value={draftTechLog}
               onChange={(e) => setDraftTechLog(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs font-mono text-slate-300 focus:outline-none focus:border-sky-500 leading-relaxed"
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs font-mono text-slate-300 focus:outline-none focus:border-sky-500 leading-relaxed overflow-y-auto max-h-40 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-900"
             />
           </div>
 
