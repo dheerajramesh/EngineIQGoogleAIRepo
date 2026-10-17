@@ -107,7 +107,7 @@ export function FlightStatusView({
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono font-medium text-sky-400 hover:text-white bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 hover:border-sky-500/50 transition shadow-sm"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>← Back to Active Flights Schedule</span>
+              <span>Back to Active Flights Schedule</span>
             </button>
             <span className="text-slate-600 hidden sm:inline">•</span>
             <span className="text-xs font-mono text-slate-400 hidden sm:inline">

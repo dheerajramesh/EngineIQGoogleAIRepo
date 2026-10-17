@@ -58,62 +58,10 @@ function getCandidateGeminiKeys(): string[] {
   return validKeys;
 }
 
-let cachedFirestoreGroqKey: string | null = null;
-let groqKeySource: string = "none";
-
-try {
-  const fbApp = initializeApp(firebaseConfig);
-  const db = getFirestore(fbApp, firebaseConfig.firestoreDatabaseId);
-
-  (async () => {
-    try {
-      const rawEnv = (process.env.GROQ_API_KEY || "").trim();
-      const docRef = doc(db, "system_ai_config", "groq_runtime");
-
-      if (rawEnv && rawEnv !== "MY_GROQ_API_KEY") {
-        await setDoc(
-          docRef,
-          {
-            configId: "groq_runtime",
-            provider: "groq",
-            encodedApiKey: Buffer.from(rawEnv).toString("base64"),
-            primaryModel: "openai/gpt-oss-120b",
-            visionModel: "qwen/qwen3.8-27b",
-            fallbackModel: "openai/gpt-oss-20b",
-            updatedByEmail: "dheeraj.aimit@gmail.com",
-            updatedAt: new Date().toISOString(),
-          },
-          { merge: true }
-        );
-        cachedFirestoreGroqKey = rawEnv;
-        groqKeySource = "env (synced to Firestore)";
-      } else {
-        const snap = await getDoc(docRef);
-        if (snap.exists()) {
-          const data = snap.data();
-          if (data?.encodedApiKey) {
-            const decoded = Buffer.from(data.encodedApiKey, "base64").toString(
-              "utf-8"
-            );
-            if (decoded && decoded !== "MY_GROQ_API_KEY") {
-              cachedFirestoreGroqKey = decoded;
-              groqKeySource = "firestore vault (hosted fallback)";
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.error("Failed to sync/hydrate Groq API key with Firestore:", e);
-    }
-  })();
-} catch (e) {
-  console.error("Firebase initialization on server failed:", e);
-}
-
 function getGroqApiKey(): string | null {
   const raw = (process.env.GROQ_API_KEY || "").trim();
   if (raw && raw !== "MY_GROQ_API_KEY") return raw;
-  return cachedFirestoreGroqKey;
+  return null;
 }
 
 // Track Gemini keys that returned 402 Prepayment Credits Depleted so Auto mode routes directly to Groq

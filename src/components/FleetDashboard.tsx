@@ -332,19 +332,6 @@ export function FleetDashboard({
 
     return (
       <div className="min-h-screen w-full bg-[#050a14] text-slate-100 flex flex-col font-sans select-none">
-        {/* Permanent Compliance Banner */}
-        <div className="w-full bg-amber-500/10 border-b border-amber-500/30 px-4 py-1.5 flex items-center justify-between text-xs text-amber-300 select-none z-30 shrink-0 font-mono">
-          <div className="flex items-center gap-2">
-            <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
-            <span className="font-semibold tracking-wide">
-              ILLUSTRATIVE DATA. NOT FOR OPERATIONAL USE. Decision support only. Certifying engineer sign-off required.
-            </span>
-          </div>
-          <div className="hidden sm:flex items-center gap-2 text-[11px] text-amber-400/80">
-            <span>IndiGo Line Operations • Flight {flight.flightNumber}</span>
-          </div>
-        </div>
-
         {/* Flight Status View Body */}
         <FlightStatusView
           flight={flight}
@@ -505,18 +492,6 @@ export function FleetDashboard({
             <Globe className="w-3.5 h-3.5 text-sky-400 animate-pulse" />
             <span className="hidden lg:inline">Live AD Search</span>
             <span className="lg:hidden">ADs</span>
-          </button>
-
-          {/* Simulate New Incident Button */}
-          <button
-            id="btn-simulate-incident"
-            onClick={() => setIsSimulateModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-400 hover:to-rose-400 text-slate-950 font-mono font-bold text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 transition cursor-pointer"
-            title="Inject an incident into the fleet to demo real-time state updates"
-          >
-            <Zap className="w-3.5 h-3.5 animate-pulse" />
-            <span className="hidden lg:inline">Simulate Incident</span>
-            <span className="lg:hidden">Simulate</span>
           </button>
 
           {/* Whiteboard / Dark HUD Toggle */}

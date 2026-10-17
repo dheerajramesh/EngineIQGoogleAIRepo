@@ -1009,16 +1009,6 @@ export default function App() {
   if (isLoadingEngine) {
     return (
       <div className="min-h-screen w-screen bg-[#070b14] text-slate-100 flex flex-col items-center justify-center space-y-4">
-        {/* Permanent disclaimer during loading */}
-        <div className="fixed top-0 inset-x-0 bg-amber-500/10 border-b border-amber-500/30 px-4 py-1.5 flex items-center justify-between text-xs text-amber-300 select-none z-30">
-          <div className="flex items-center gap-2">
-            <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
-            <span className="font-semibold tracking-wide">
-              ILLUSTRATIVE DATA. NOT FOR OPERATIONAL USE. Decision support only. Certifying engineer sign-off required.
-            </span>
-          </div>
-        </div>
-
         <div className="w-14 h-14 rounded-2xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center shadow-xl shadow-sky-500/10">
           <Loader2 className="w-7 h-7 text-sky-400 animate-spin" />
         </div>
@@ -1037,23 +1027,6 @@ export default function App() {
   // Render the Engine Workspace for the currently selected engine
   return (
     <div className={`flex flex-col h-screen w-screen text-slate-100 overflow-hidden font-sans transition-colors duration-300 ${theme === "light" ? "bg-[#f8fafc]" : "bg-[#070b14]"}`}>
-      {/* 1. Permanent Required Compliance Banner on Every Screen */}
-      <div className="w-full bg-amber-500/10 border-b border-amber-500/30 px-4 py-1.5 flex items-center justify-between text-xs text-amber-300 select-none z-30 shrink-0">
-        <div className="flex items-center gap-2">
-          <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
-          <span className="font-semibold tracking-wide">
-            ILLUSTRATIVE DATA. NOT FOR OPERATIONAL USE. Decision support only. Certifying engineer sign-off required.
-          </span>
-        </div>
-        <div className="hidden md:flex items-center gap-2 text-[11px] font-mono text-amber-400/80">
-          <span>Engine Workspace</span>
-          <span>•</span>
-          <span>{activeFlight ? `Flight ${activeFlight.flightNumber} (${activeFlight.aircraftTail})` : currentEngine.tailNumber}</span>
-          <span>•</span>
-          <span>{currentEngine.enginePosition} ({currentEngine.id})</span>
-        </div>
-      </div>
-
       {/* 2. Persistent Navigation Header & Engine Context Strip */}
       <header className={`h-14 border-b px-3 sm:px-4 flex items-center justify-between z-20 shrink-0 transition-colors duration-300 ${theme === "light" ? "bg-white/95 border-slate-200" : "bg-slate-950/90 border-slate-800"}`}>
         <div className="flex items-center gap-3 sm:gap-5">
@@ -1433,6 +1406,9 @@ export default function App() {
         onClose={() => setIsSearchModalOpen(false)}
         initialQuery={searchModalQuery}
       />
+      <div className="py-2 text-center text-[10px] text-slate-500 font-mono border-t border-slate-900/80 bg-slate-950/40 select-none shrink-0">
+        ILLUSTRATIVE DATA. NOT FOR OPERATIONAL USE. Decision support only. Certifying engineer sign-off required.
+      </div>
     </div>
   );
 }
