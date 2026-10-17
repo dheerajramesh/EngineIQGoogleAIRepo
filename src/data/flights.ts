@@ -31,7 +31,7 @@ export const INDIGO_FLIGHTS: FlightInfo[] = [
     turnaroundMinutesRemaining: 34,
     pilotName: "Capt. Rohan Sharma / FO S. Deshmukh",
     crewReport:
-      "Captain Logbook: Post-descent N1 vibration reading reached 2.8 units at 84% N1 during FL120 descent. Visual inspection of No.1 Fan Blades and inlet cowl required before departure.",
+      "Captain Logbook: Severe flock bird ingestion on takeoff climb on No.1 Engine. Peak N1 vibration reached 4.8 units. Walkaround confirmed 12.0 mm through-crack on Fan Blade #8 and 4.0 mm containment ring dent.",
     engine1Id: "VT-DEM2-ENG1", // 14,200 cyc, action_required
     engine2Id: "VT-DEM2-ENG2", // 13,800 cyc, normal
     overallStatus: "action_required",
@@ -62,7 +62,7 @@ export const INDIGO_FLIGHTS: FlightInfo[] = [
     turnaroundMinutesRemaining: 48,
     pilotName: "Capt. Ananya Iyer / FO K. Patel",
     crewReport:
-      "Transit Check Item: Scheduled check on No.2 Engine oil consumption rate (trending at 0.18 qt/hr). AMM 79-00 oil replenishment and magnetic chip detector check.",
+      "Transit Check Item: Bird strike reported at 1,500 ft during climb on No.2 Engine. Fan Blade #14 leading-edge nick measured at 1.9 mm depth with 2.2 units peak N1 vibration. On-wing blend evaluation required per AMM 72-12-00.",
     engine1Id: "VT-DEM1-ENG1", // 8,150 cyc, normal
     engine2Id: "VT-DEM1-ENG2", // 8,400 cyc, watch
     overallStatus: "watch",
@@ -93,7 +93,7 @@ export const INDIGO_FLIGHTS: FlightInfo[] = [
     turnaroundMinutesRemaining: 110,
     pilotName: "Capt. Farhan Akhtar / FO M. Chawla",
     crewReport:
-      "CAMO Directive: Pre-international clearance borescope inspection on HPC Stage 3 & 4. Review life consumption on high-pressure turbine disks.",
+      "Transit Walkaround Alert: Oil accumulation noted in No.1 Engine lower nacelle drain mast. Static leak test recorded 18 drops/min from accessory gearbox B-nut coupling. Verify dispatch limits under AMM 79-00-00.",
     engine1Id: "VT-DEM4-ENG1", // 11,900 cyc, watch
     engine2Id: "VT-DEM4-ENG2", // 11,500 cyc, normal
     overallStatus: "watch",
@@ -151,13 +151,13 @@ export const INDIGO_FLIGHTS: FlightInfo[] = [
     aircraftModel: "Airbus A321-271NX (PW1133G-JM)",
     gateBay: "Gate 31B • Stand 14",
     flightStatus: "arrived_turnaround",
-    statusLabel: "Bird Strike Inspection Due",
+    statusLabel: "Hot Section Borescope Hold",
     turnaroundMinutesRemaining: 22,
     pilotName: "Capt. Vikramaditya / FO P. Nair",
     crewReport:
-      "Bird Strike Reported: Ingestion suspected on No.2 Engine at 1,200 ft AGL on final approach. Visual check on fan blades 12-16 and acoustic liner required before flight release.",
-    engine1Id: "VT-DEM6-ENG1", // 16,100 cyc, normal
-    engine2Id: "VT-DEM6-ENG2", // 16,800 cyc, action_required
+      "High EGT Trend Alert: Post-flight borescope on No.2 Engine Stage 1 HPT rotor blades confirmed 42% thermal barrier coating (TBC) spallation, exceeding AMM 72-51-00 max 30% dispatch limit.",
+    engine1Id: "VT-DEM6-ENG1", // 13,600 cyc, normal
+    engine2Id: "VT-DEM6-ENG2", // 13,950 cyc, action_required
     overallStatus: "action_required",
     activeAlertCount: 1,
   },
@@ -178,19 +178,19 @@ export const INDIGO_FLIGHTS: FlightInfo[] = [
     },
     departureTime: "18:00 IST",
     arrivalTime: "20:15 IST",
-    aircraftTail: "VT-IND",
+    aircraftTail: "VT-IKL",
     aircraftModel: "Airbus A320-271N (PW1127G-JM)",
     gateBay: "Gate 12 • Stand 03",
     flightStatus: "scheduled",
-    statusLabel: "Scheduled Boarding",
+    statusLabel: "Scheduled Boarding (Watch)",
     turnaroundMinutesRemaining: 55,
     pilotName: "Capt. Alok Verma / FO D. Saxena",
     crewReport:
-      "Routine pre-flight walkaround completed by Line Tech. All security seals and hydraulic line fittings nominal.",
+      "ACARS Vibration Advisory: Elevated N1 vibration (2.9 units) logged during step climb passing FL280 on No.2 Engine Fan Drive Gear System & core spool. Trim balance and chip detector check required.",
     engine1Id: "VT-DEM5-ENG1", // 12,200 cyc, normal
     engine2Id: "VT-DEM5-ENG2", // 12,650 cyc, watch
     overallStatus: "watch",
-    activeAlertCount: 0,
+    activeAlertCount: 1,
   },
 ];
 

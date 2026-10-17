@@ -119,6 +119,7 @@ export function IncidentView({
   const [rejectReason, setRejectReason] = useState("");
   const [signOffStatus, setSignOffStatus] = useState<"Pending" | "Approved" | "Edited" | "Rejected">("Pending");
   const [signOffTimestamp, setSignOffTimestamp] = useState<string | null>(null);
+  const [signOffError, setSignOffError] = useState<string | null>(null);
 
   // Load Example Scenario
   const handleLoadScenario = (scenarioId: string) => {
@@ -257,9 +258,12 @@ STATUS: Illustrative assessment. Certifying engineer sign-off required.`;
   // Sign-Off Handler
   const handleSignOff = (decision: "Approved" | "Edited" | "Rejected") => {
     if (!engineerName.trim() || !engineerId.trim()) {
-      alert("Please provide Certifying Engineer Name and License ID before signing.");
+      setSignOffError(
+        "Certifying Engineer Full Name and Part-66 / A&P License ID are mandatory before signing off an airworthiness determination."
+      );
       return;
     }
+    setSignOffError(null);
 
     const timestamp = new Date().toISOString();
     setSignOffStatus(decision);
@@ -1136,7 +1140,10 @@ STATUS: Illustrative assessment. Certifying engineer sign-off required.`;
                   id="input-engineer-name"
                   type="text"
                   value={engineerName}
-                  onChange={(e) => setEngineerName(e.target.value)}
+                  onChange={(e) => {
+                    setEngineerName(e.target.value);
+                    if (signOffError) setSignOffError(null);
+                  }}
                   placeholder="e.g. Captain D. Vance / Eng. Sarah Lin"
                   disabled={signOffStatus !== "Pending"}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500 disabled:opacity-60"
@@ -1151,13 +1158,23 @@ STATUS: Illustrative assessment. Certifying engineer sign-off required.`;
                   id="input-engineer-id"
                   type="text"
                   value={engineerId}
-                  onChange={(e) => setEngineerId(e.target.value)}
+                  onChange={(e) => {
+                    setEngineerId(e.target.value);
+                    if (signOffError) setSignOffError(null);
+                  }}
                   placeholder="e.g. UK.66.19842A / FAA-AP-39201"
                   disabled={signOffStatus !== "Pending"}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500 disabled:opacity-60"
                 />
               </div>
             </div>
+
+            {signOffError && (
+              <div className="p-3 rounded-lg bg-rose-950/80 border border-rose-500/80 text-xs text-rose-200 font-mono flex items-center gap-2 animate-fade-in">
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>{signOffError}</span>
+              </div>
+            )}
 
             {/* Reject Reason input if selecting Reject */}
             {signOffStatus === "Pending" && (

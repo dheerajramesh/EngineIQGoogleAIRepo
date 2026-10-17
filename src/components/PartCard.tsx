@@ -2,6 +2,8 @@ import React, { useState, useMemo } from "react";
 import {
   EnginePartData,
   PartId,
+  PartStatus,
+  CaseLogEntry,
   ComponentHistoryEntry,
   UserSession,
   PreventiveMaintenanceTask,
@@ -64,6 +66,7 @@ interface PartCardProps {
   partStatus?: PartStatus;
   allPartStatuses?: Record<PartId, PartStatus>;
   onUpdatePartStatus?: (partId: PartId, status: PartStatus) => void;
+  openCases?: CaseLogEntry[];
 }
 
 export function PartCard({
@@ -75,9 +78,9 @@ export function PartCard({
   onAddLog,
   userSession,
   engineId = "VT-DEM1-ENG1",
-  tailNumber = "VT-DEM1",
+  tailNumber = "VT-ITG",
   engineCycles = 5120,
-  engineHours = 14220,
+  engineHours = 9472,
   preventiveTasks = [],
   onSignOffPreventiveTask,
   onOpenFullPreventiveSchedule,
@@ -86,14 +89,53 @@ export function PartCard({
   partStatus = "default",
   allPartStatuses,
   onUpdatePartStatus,
+  openCases = [],
 }: PartCardProps) {
   const [internalTab, setInternalTab] = useState<"specs" | "preventive" | "lifetracker" | "history">("specs");
   const cardTab = activeSubTab !== undefined ? activeSubTab : internalTab;
   const setCardTab = onSubTabChange || setInternalTab;
   const [showDefectManualView, setShowDefectManualView] = useState(false);
 
-  // Active defect information for the selected part
-  const defectInfo = COMPONENT_DEFECTS[part.id];
+  // Active defect information for the selected part (dynamically overlaid with the engine's actual open case if present)
+  const defectInfo = useMemo(() => {
+    const baseDefect = COMPONENT_DEFECTS[part.id];
+    const matchingCase = openCases.find((c) =>
+      c.findings.some((f) => f.part === part.id)
+    );
+    if (!matchingCase) return baseDefect;
+
+    const finding = matchingCase.findings.find((f) => f.part === part.id);
+    const matchingRow =
+      matchingCase.limitsRows.find(
+        (r) =>
+          r.component.toLowerCase().includes(part.name.split(" ")[0].toLowerCase()) ||
+          r.damageType === finding?.damageType
+      ) || matchingCase.limitsRows[0];
+
+    const isCritical = matchingCase.overallLevel >= 3;
+    const damageLabel = finding?.damageType
+      ? finding.damageType.replace(/_/g, " ").toUpperCase()
+      : "ANOMALY";
+    const measuredStr = finding?.measurement
+      ? `${finding.measurement.value} ${finding.measurement.unit.replace(/_/g, " ")}`
+      : matchingRow?.measured || "Confirmed finding";
+
+    return {
+      ...baseDefect,
+      defectTitle: `${part.name}: ${damageLabel} in ${finding?.zone || part.defaultZone} (${measuredStr})`,
+      findings: `${matchingCase.summary} [Measured: ${measuredStr} • Limit Band: ${matchingRow?.limitBandApplied || "Evaluated"}]`,
+      isFixRequired: isCritical,
+      fixDetermination: isCritical
+        ? `LEVEL ${matchingCase.overallLevel} — MANDATORY FIX BEFORE FLIGHT (AOG)`
+        : `LEVEL ${matchingCase.overallLevel} — ON-WING BLEND / INSPECTION REQUIRED`,
+      fixDeterminationDescription:
+        matchingRow?.notes || matchingCase.aiExplanation || baseDefect.fixDeterminationDescription,
+      severity: isCritical ? ("critical" as const) : ("urgent" as const),
+      sourceDocId: matchingRow?.sourceDocId || baseDefect.sourceDocId,
+      bulletinRef: `Active Case ${matchingCase.id} • ${baseDefect.bulletinRef}`,
+    };
+  }, [part.id, part.name, part.defaultZone, openCases]);
+
   const isPartAffected = partStatus === "affected";
   const isPartInspect = partStatus === "inspect";
   const shouldShowDefectBanner = isPartAffected || isPartInspect || showDefectManualView;
@@ -114,8 +156,56 @@ export function PartCard({
   const [isOfflineSample, setIsOfflineSample] = useState(false);
   const [apiError, setApiError] = useState<{ type: string; message: string } | null>(null);
 
+  // Scope and normalize history logs strictly to the current engine's identity & cycle count
+  const scopedHistoryLogs = useMemo(() => {
+    // 1. Keep user-recorded logs only if they belong to this exact engineId
+    const relevantLogs = historyLogs.filter((log) => {
+      const isUserCreated =
+        log.id.startsWith("LOG-MAN-") ||
+        log.id.startsWith("LOG-RECT-") ||
+        log.id.startsWith("LOG-PM-") ||
+        log.id.startsWith("LOG-CUSTOM-") ||
+        (log.engineId && log.engineId !== "VT-DEM1-ENG1");
+      if (isUserCreated) {
+        return log.engineId === engineId;
+      }
+      return true;
+    });
+
+    // 2. Normalize baseline seeded logs so their CSN, FH, and tailNumber match this engine
+    const partIndexTracker: Record<string, number> = {};
+    return relevantLogs.map((log) => {
+      const isBaseline =
+        !log.id.startsWith("LOG-MAN-") &&
+        !log.id.startsWith("LOG-RECT-") &&
+        !log.id.startsWith("LOG-PM-") &&
+        !log.id.startsWith("LOG-CUSTOM-") &&
+        log.engineId === "VT-DEM1-ENG1";
+      if (!isBaseline) return log;
+
+      const idx = partIndexTracker[log.partId] || 0;
+      partIndexTracker[log.partId] = idx + 1;
+      const cycleOffsets = [14, 58, 290, 920];
+      const offset = cycleOffsets[idx] ?? (idx + 1) * 350;
+      const adjustedCycles = Math.max(120, engineCycles - offset);
+      const adjustedHours = Math.round(adjustedCycles * 1.85);
+
+      return {
+        ...log,
+        engineId,
+        tailNumber,
+        flightCycles: adjustedCycles,
+        flightHours: adjustedHours,
+        findingsSummary: log.findingsSummary.replace("flight AI-402", `aircraft ${tailNumber}`),
+      };
+    });
+  }, [historyLogs, engineId, tailNumber, engineCycles]);
+
   // Compute logs for this component
-  const componentLogs = historyLogs.filter((log) => log.partId === part.id);
+  const componentLogs = useMemo(
+    () => scopedHistoryLogs.filter((log) => log.partId === part.id),
+    [scopedHistoryLogs, part.id]
+  );
   const latestLog = componentLogs[0];
 
   // Compute LLP parameters for this component
@@ -221,18 +311,8 @@ export function PartCard({
               className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-400 hover:text-white border border-slate-700 text-[11px] font-semibold transition cursor-pointer"
               title="Inspect standard Airbus/PW AMM defect criteria and rectification procedures"
             >
-              {showDefectManualView ? "Hide AMM Fix Criteria" : "View AMM Defect & Fix Guidelines"}
+              {showDefectManualView ? "Hide AMM Reference Criteria" : "AMM Reference Limits"}
             </button>
-            {onUpdatePartStatus && (
-              <button
-                onClick={() => onUpdatePartStatus(part.id, "affected")}
-                className="px-2 py-1 rounded-lg bg-rose-950/70 hover:bg-rose-900 text-rose-300 hover:text-rose-100 border border-rose-800/60 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer"
-                title="Test: Illuminate this component in red and display mandatory fix procedure"
-              >
-                <AlertTriangle className="w-3 h-3 text-rose-400" />
-                <span>Simulate Red Alert</span>
-              </button>
-            )}
           </div>
         </div>
       )}
@@ -427,14 +507,6 @@ export function PartCard({
                   <span>Sign Off Fix & Clear Red Light</span>
                 </button>
               )}
-              {showDefectManualView && !isPartAffected && onUpdatePartStatus && (
-                <button
-                  onClick={() => onUpdatePartStatus(part.id, "affected")}
-                  className="px-2 py-1 rounded bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-800 text-xs font-bold transition cursor-pointer"
-                >
-                  Simulate Red Alert in 3D
-                </button>
-              )}
               <button
                 onClick={() => setCardTab("history")}
                 className="text-sky-400 hover:text-white hover:underline flex items-center gap-1 font-semibold cursor-pointer"
@@ -584,7 +656,7 @@ export function PartCard({
           engineCycles={engineCycles}
           engineId={engineId}
           tailNumber={tailNumber}
-          historyLogs={historyLogs}
+          historyLogs={scopedHistoryLogs}
           onSelectComponent={onSelectConnectedPart}
           onOpenHistoryTab={() => setCardTab("history")}
           onOpenCitation={onOpenCitation}
@@ -592,7 +664,7 @@ export function PartCard({
       ) : cardTab === "history" ? (
         <ComponentHistoryView
           part={part}
-          historyLogs={historyLogs}
+          historyLogs={scopedHistoryLogs}
           onAddLog={onAddLog || (() => {})}
           userSession={
             userSession || {

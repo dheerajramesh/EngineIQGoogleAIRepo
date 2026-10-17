@@ -336,7 +336,7 @@ function HpcMesh({
   );
 }
 
-// 6. Combustor - torus/ring shape, orange tint
+// 6. Combustor - annular torus chamber with fuel nozzle ports
 function CombustorMesh({
   position,
   isSelected,
@@ -351,11 +351,11 @@ function CombustorMesh({
 
   const material = useMemo(() => {
     return new THREE.MeshStandardMaterial({
-      color: isSpecial ? "#38bdf8" : status === "default" ? "#ea580c" : col.base,
-      emissive: isSpecial ? "#0284c7" : status === "default" ? "#9a3412" : col.emissive,
-      emissiveIntensity: isSpecial ? 0.7 : status === "default" ? 0.5 : col.intensity,
-      metalness: 0.75,
-      roughness: 0.35,
+      color: isSpecial ? "#38bdf8" : col.base,
+      emissive: isSpecial ? "#0284c7" : col.emissive,
+      emissiveIntensity: isSpecial ? 0.65 : col.intensity,
+      metalness: 0.85,
+      roughness: 0.28,
     });
   }, [status, isSpecial, col]);
 
@@ -533,11 +533,11 @@ function OilSystemMesh({
 
   const material = useMemo(() => {
     return new THREE.MeshStandardMaterial({
-      color: isSpecial ? "#38bdf8" : status === "default" ? "#94a3b8" : col.base,
+      color: isSpecial ? "#38bdf8" : col.base,
       emissive: isSpecial ? "#0284c7" : col.emissive,
       emissiveIntensity: isSpecial ? 0.65 : col.intensity,
-      metalness: 0.92,
-      roughness: 0.2,
+      metalness: 0.9,
+      roughness: 0.22,
     });
   }, [status, isSpecial, col]);
 
@@ -617,24 +617,24 @@ function EngineScene({
     }
   };
 
-  // Base and Exploded Z coordinates along engine axis
+  // Base and Exploded Z coordinates along engine axis with staggered 3D label offsets to prevent overlap
   const partsLayout: Array<{
     id: PartId;
     baseZ: number;
     explodedZ: number;
-    labelY: number;
+    labelOffset: [number, number, number];
     component: React.ComponentType<any>;
   }> = [
-    { id: "fan_blades", baseZ: 2.3, explodedZ: 4.2, labelY: 1.4, component: FanBladesMesh },
-    { id: "fan_case", baseZ: 2.1, explodedZ: 3.2, labelY: 2.0, component: FanCaseMesh },
-    { id: "fan_drive_gear", baseZ: 1.35, explodedZ: 2.0, labelY: 0.9, component: FanDriveGearMesh },
-    { id: "lpc", baseZ: 0.8, explodedZ: 1.1, labelY: 1.0, component: LpcMesh },
-    { id: "hpc", baseZ: 0.0, explodedZ: 0.0, labelY: 0.9, component: HpcMesh },
-    { id: "combustor", baseZ: -0.85, explodedZ: -1.0, labelY: 0.9, component: CombustorMesh },
-    { id: "hpt", baseZ: -1.4, explodedZ: -1.9, labelY: 0.9, component: HptMesh },
-    { id: "lpt", baseZ: -2.1, explodedZ: -2.9, labelY: 1.0, component: LptMesh },
-    { id: "exhaust", baseZ: -3.0, explodedZ: -4.3, labelY: 1.1, component: ExhaustMesh },
-    { id: "oil_system", baseZ: 0.0, explodedZ: 0.0, labelY: -1.1, component: OilSystemMesh },
+    { id: "fan_case", baseZ: 2.1, explodedZ: 3.2, labelOffset: [0, 2.2, 0.1], component: FanCaseMesh },
+    { id: "fan_blades", baseZ: 2.3, explodedZ: 4.2, labelOffset: [0.6, 1.35, 0.35], component: FanBladesMesh },
+    { id: "fan_drive_gear", baseZ: 1.35, explodedZ: 2.0, labelOffset: [-0.55, -1.05, 0.15], component: FanDriveGearMesh },
+    { id: "lpc", baseZ: 0.8, explodedZ: 1.1, labelOffset: [0.45, 1.15, 0.1], component: LpcMesh },
+    { id: "hpc", baseZ: 0.0, explodedZ: 0.0, labelOffset: [-0.45, 1.55, 0], component: HpcMesh },
+    { id: "combustor", baseZ: -0.85, explodedZ: -1.0, labelOffset: [-0.5, -0.95, 0], component: CombustorMesh },
+    { id: "hpt", baseZ: -1.4, explodedZ: -1.9, labelOffset: [0.45, 1.2, 0], component: HptMesh },
+    { id: "lpt", baseZ: -2.1, explodedZ: -2.9, labelOffset: [-0.45, 1.6, -0.1], component: LptMesh },
+    { id: "exhaust", baseZ: -3.0, explodedZ: -4.3, labelOffset: [0.3, 1.05, -0.35], component: ExhaustMesh },
+    { id: "oil_system", baseZ: 0.0, explodedZ: 0.0, labelOffset: [0.85, -1.35, 0.25], component: OilSystemMesh },
   ];
 
   return (
@@ -669,29 +669,44 @@ function EngineScene({
               }}
             />
 
-            {/* Labels pinned to parts (hidden when any modal is open and capped to z-10) */}
+            {/* Staggered 3D Labels pinned to parts (hidden when any modal is open and capped to z-10) */}
             {showLabels && !isModalOpen && (
               <Html
-                position={[0, p.labelY, currentZ]}
+                position={[
+                  p.labelOffset[0],
+                  p.labelOffset[1],
+                  currentZ + p.labelOffset[2],
+                ]}
                 center
                 distanceFactor={10}
                 zIndexRange={[10, 0]}
                 style={{ pointerEvents: "none" }}
               >
                 <div
-                  className={`px-2 py-0.5 text-[11px] font-mono tracking-tight rounded-md backdrop-blur-md border whitespace-nowrap transition-all duration-200 shadow-lg ${
-                    isSelected
+                  className={`px-2 py-0.5 text-[10px] font-mono tracking-tight rounded-md backdrop-blur-md border whitespace-nowrap transition-all duration-200 shadow-lg flex items-center gap-1.5 ${
+                    status === "affected"
+                      ? "bg-rose-950/95 text-rose-200 border-rose-500 font-bold shadow-rose-950/60"
+                      : status === "inspect"
+                      ? "bg-amber-950/95 text-amber-200 border-amber-500 font-bold shadow-amber-950/60"
+                      : isSelected
                       ? "bg-sky-500 text-white border-sky-300 font-semibold scale-105 shadow-sky-500/30"
                       : isHovered
                       ? theme === "light"
                         ? "bg-white text-sky-600 border-sky-400 shadow-md font-semibold"
-                        : "bg-slate-900/90 text-sky-400 border-sky-500/50"
+                        : "bg-slate-900/95 text-sky-400 border-sky-500/50"
                       : theme === "light"
                       ? "bg-white/95 text-slate-800 border-slate-300 shadow-sm"
-                      : "bg-slate-950/80 text-slate-300 border-slate-700/60"
+                      : "bg-slate-950/85 text-slate-300 border-slate-700/70"
                   }`}
                 >
-                  {ENGINE_PARTS[p.id]?.name || p.id}
+                  {(status === "affected" || status === "inspect") && (
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                        status === "affected" ? "bg-rose-400 animate-ping" : "bg-amber-400"
+                      }`}
+                    />
+                  )}
+                  <span>{ENGINE_PARTS[p.id]?.name || p.id}</span>
                 </div>
               </Html>
             )}

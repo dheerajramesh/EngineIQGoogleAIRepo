@@ -121,7 +121,7 @@ export default function App() {
   // 2. Fleet Engines State
   const [engines, setEngines] = useState<AircraftEngine[]>(() => {
     try {
-      const saved = localStorage.getItem("engineiq_engines");
+      const saved = localStorage.getItem("engineiq_engines_v3");
       return saved ? JSON.parse(saved) : INITIAL_FLEET_ENGINES;
     } catch {
       return INITIAL_FLEET_ENGINES;
@@ -153,7 +153,7 @@ export default function App() {
   // 5. Global Case Log State (pre-seeded with initial fleet cases)
   const [caseLogs, setCaseLogs] = useState<CaseLogEntry[]>(() => {
     try {
-      const saved = localStorage.getItem("engineiq_case_logs");
+      const saved = localStorage.getItem("engineiq_case_logs_v3");
       return saved ? JSON.parse(saved) : INITIAL_FLEET_CASES;
     } catch {
       return INITIAL_FLEET_CASES;
@@ -163,7 +163,7 @@ export default function App() {
   // 5b. Component Maintenance History State (pre-seeded for all 10 core subsystems)
   const [componentLogs, setComponentLogs] = useState<ComponentHistoryEntry[]>(() => {
     try {
-      const saved = localStorage.getItem("engineiq_component_history");
+      const saved = localStorage.getItem("engineiq_component_history_v3");
       return saved ? JSON.parse(saved) : INITIAL_COMPONENT_HISTORY;
     } catch {
       return INITIAL_COMPONENT_HISTORY;
@@ -174,7 +174,7 @@ export default function App() {
     setComponentLogs((prev) => {
       const updated = [newEntry, ...prev];
       try {
-        localStorage.setItem("engineiq_component_history", JSON.stringify(updated));
+        localStorage.setItem("engineiq_component_history_v3", JSON.stringify(updated));
       } catch (e) {
         console.warn("Failed to save component history", e);
       }
@@ -210,19 +210,21 @@ export default function App() {
   }, [preventiveTasks]);
 
   const handleSignOffPMTask = (taskId: string, record: PMSignOffRecord) => {
+    const activeCycles = currentEngine?.cyclesSinceNew || 5120;
+    const activeHours = Math.round(activeCycles * 1.85);
     setPreventiveTasks((prev) =>
       prev.map((t) => {
         if (t.id === taskId) {
-          const nextCycles = t.intervalCycles ? t.intervalCycles + (currentEngine?.cyclesSinceNew || 5120) : t.nextDueCycles + 1000;
-          const nextHours = t.intervalHours ? t.intervalHours + 14220 : t.nextDueHours + 2500;
+          const nextCycles = t.intervalCycles ? t.intervalCycles + activeCycles : t.nextDueCycles + 1000;
+          const nextHours = t.intervalHours ? t.intervalHours + activeHours : t.nextDueHours + 2500;
           const targetDate = new Date();
           targetDate.setMonth(targetDate.getMonth() + 6);
           const nextDueDate = targetDate.toISOString().split("T")[0];
 
           return {
             ...t,
-            lastCompletedCycles: currentEngine?.cyclesSinceNew || 5120,
-            lastCompletedHours: 14220,
+            lastCompletedCycles: activeCycles,
+            lastCompletedHours: activeHours,
             lastCompletedDate: record.date,
             nextDueCycles: nextCycles,
             nextDueHours: nextHours,
@@ -285,19 +287,53 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [liveToast]);
 
+  // Helper: Deterministically compute 3D part statuses from engine health & open cases
+  const computeEnginePartStatuses = (
+    engineId: string | null,
+    enginesList: AircraftEngine[],
+    casesList: CaseLogEntry[]
+  ): { statuses: Record<PartId, PartStatus>; initialPart: PartId } => {
+    const statuses: Record<PartId, PartStatus> = {
+      fan_case: "default",
+      fan_blades: "default",
+      fan_drive_gear: "default",
+      lpc: "default",
+      hpc: "default",
+      combustor: "default",
+      hpt: "default",
+      lpt: "default",
+      exhaust: "default",
+      oil_system: "default",
+    };
+    let initialPart: PartId = "fan_blades";
+    if (!engineId) return { statuses, initialPart };
+
+    const targetEng = enginesList.find((e) => e.id === engineId);
+    // Healthy normal engines must have ALL components in default (neutral metallic) state
+    if (!targetEng || targetEng.status === "normal") {
+      return { statuses, initialPart };
+    }
+
+    if (targetEng.openCaseIds && targetEng.openCaseIds.length > 0) {
+      const engCases = casesList.filter((c) => targetEng.openCaseIds.includes(c.id));
+      for (const c of engCases) {
+        for (const f of c.findings) {
+          if (f.part !== "engine" && statuses[f.part as PartId] !== undefined) {
+            statuses[f.part as PartId] = c.overallLevel >= 3 ? "affected" : "inspect";
+            initialPart = f.part as PartId;
+          }
+        }
+      }
+    }
+    return { statuses, initialPart };
+  };
+
   // 8. 3D Engine Component Selection & Statuses
-  const [selectedPartId, setSelectedPartId] = useState<PartId>("fan_blades");
-  const [partStatuses, setPartStatuses] = useState<Record<PartId, PartStatus>>({
-    fan_case: "default",
-    fan_blades: "default",
-    fan_drive_gear: "default",
-    lpc: "default",
-    hpc: "default",
-    combustor: "default",
-    hpt: "default",
-    lpt: "default",
-    exhaust: "default",
-    oil_system: "default",
+  const [selectedPartId, setSelectedPartId] = useState<PartId>(() => {
+    return computeEnginePartStatuses(currentEngineId, engines, caseLogs).initialPart;
+  });
+  const [partStatuses, setPartStatuses] = useState<Record<PartId, PartStatus>>(() => {
+    return computeEnginePartStatuses(currentEngineId, engines, caseLogs).statuses;
   });
 
   // 9. Multi-select for Training Mode
@@ -385,36 +421,11 @@ export default function App() {
       // ignore
     }
 
-    // Determine 3D part statuses and selection from active cases or engine status
-    const targetEng = engines.find((e) => e.id === engineId);
-    const newStatuses: Record<PartId, PartStatus> = {
-      fan_case: "default",
-      fan_blades: "default",
-      fan_drive_gear: "default",
-      lpc: "default",
-      hpc: "default",
-      combustor: "default",
-      hpt: "default",
-      lpt: "default",
-      exhaust: "default",
-      oil_system: "default",
-    };
-    let initialSelectedPart: PartId = "fan_blades";
-
-    if (targetEng && targetEng.openCaseIds && targetEng.openCaseIds.length > 0) {
-      const engCases = caseLogs.filter((c) => targetEng.openCaseIds.includes(c.id));
-      for (const c of engCases) {
-        for (const f of c.findings) {
-          if (f.part !== "engine" && newStatuses[f.part as PartId] !== undefined) {
-            newStatuses[f.part as PartId] = c.overallLevel >= 3 ? "affected" : "inspect";
-            initialSelectedPart = f.part as PartId;
-          }
-        }
-      }
-    } else if (targetEng?.status === "action_required") {
-      newStatuses.oil_system = "affected";
-      initialSelectedPart = "oil_system";
-    }
+    const { statuses: newStatuses, initialPart: initialSelectedPart } = computeEnginePartStatuses(
+      engineId,
+      engines,
+      caseLogs
+    );
 
     setSelectedPartId(initialSelectedPart);
     setExploreSubView("3d");
@@ -510,7 +521,7 @@ export default function App() {
     const updatedLogs = [newCase, ...caseLogs];
     setCaseLogs(updatedLogs);
     try {
-      localStorage.setItem("engineiq_case_logs", JSON.stringify(updatedLogs));
+      localStorage.setItem("engineiq_case_logs_v3", JSON.stringify(updatedLogs));
     } catch {}
 
     // 2. Update engine status to action_required and prepend case ID
@@ -526,10 +537,19 @@ export default function App() {
         return eng;
       });
       try {
-        localStorage.setItem("engineiq_engines", JSON.stringify(updated));
+        localStorage.setItem("engineiq_engines_v3", JSON.stringify(updated));
       } catch {}
       return updated;
     });
+
+    // If the simulated incident targets the currently open engine, immediately update 3D statuses
+    if (engineId === currentEngineId) {
+      setPartStatuses((prev) => ({
+        ...prev,
+        [affectedPartKey]: "affected",
+      }));
+      setSelectedPartId(affectedPartKey);
+    }
 
     // 3. Trigger live animated toast notification
     const scenarioShortTitle = scenario.title.includes(":") ? scenario.title.split(":")[1].trim() : scenario.title;
@@ -548,7 +568,7 @@ export default function App() {
     const updatedLogs = [entry, ...caseLogs];
     setCaseLogs(updatedLogs);
     try {
-      localStorage.setItem("engineiq_case_logs", JSON.stringify(updatedLogs));
+      localStorage.setItem("engineiq_case_logs_v3", JSON.stringify(updatedLogs));
     } catch {
       // ignore
     }
@@ -575,7 +595,7 @@ export default function App() {
           return eng;
         });
         try {
-          localStorage.setItem("engineiq_engines", JSON.stringify(updatedEngines));
+          localStorage.setItem("engineiq_engines_v3", JSON.stringify(updatedEngines));
         } catch {
           // ignore
         }
@@ -587,7 +607,7 @@ export default function App() {
   const handleClearLogs = () => {
     setCaseLogs([]);
     try {
-      localStorage.removeItem("engineiq_case_logs");
+      localStorage.removeItem("engineiq_case_logs_v3");
     } catch {
       // ignore
     }
@@ -608,11 +628,63 @@ export default function App() {
     }
   };
 
+  // Closed-Loop Component Status & Rectification Handler
   const handleUpdatePartStatus = (partId: PartId, status: PartStatus) => {
-    setPartStatuses((prev) => ({
-      ...prev,
+    const nextStatuses: Record<PartId, PartStatus> = {
+      ...partStatuses,
       [partId]: status,
-    }));
+    };
+    setPartStatuses(nextStatuses);
+
+    if (currentEngineId) {
+      const remainingValues = Object.values(nextStatuses);
+      const hasRemainingAffected = remainingValues.includes("affected");
+      const hasRemainingInspect = remainingValues.includes("inspect");
+      const nextEngineStatus: AircraftEngine["status"] = hasRemainingAffected
+        ? "action_required"
+        : hasRemainingInspect
+        ? "watch"
+        : "normal";
+
+      if (status === "default") {
+        // Remove the rectified part finding from the engine's open cases
+        setCaseLogs((prevCases) => {
+          const currentEng = engines.find((e) => e.id === currentEngineId);
+          const openIds = currentEng?.openCaseIds || [];
+          const updatedCases = prevCases.map((c) => {
+            if (openIds.includes(c.id)) {
+              return {
+                ...c,
+                findings: c.findings.filter((f) => f.part !== partId),
+              };
+            }
+            return c;
+          });
+          try {
+            localStorage.setItem("engineiq_case_logs_v3", JSON.stringify(updatedCases));
+          } catch {}
+          return updatedCases;
+        });
+      }
+
+      // Update the engine's overall airworthiness status and clear resolved openCaseIds when normal
+      setEngines((prevEngines) => {
+        const updated = prevEngines.map((eng) => {
+          if (eng.id === currentEngineId) {
+            return {
+              ...eng,
+              status: nextEngineStatus,
+              openCaseIds: nextEngineStatus === "normal" ? [] : eng.openCaseIds,
+            };
+          }
+          return eng;
+        });
+        try {
+          localStorage.setItem("engineiq_engines_v3", JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
+    }
   };
 
   const handleModeChange = (mode: AppMode) => {
@@ -1023,9 +1095,9 @@ export default function App() {
                 onAddLog={handleAddComponentLog}
                 userSession={session}
                 engineId={currentEngine.id}
-                tailNumber={currentEngine.tailNumber}
+                tailNumber={activeFlight?.aircraftTail || currentEngine.tailNumber}
                 engineCycles={currentEngine.cyclesSinceNew}
-                engineHours={14220}
+                engineHours={Math.round(currentEngine.cyclesSinceNew * 1.85)}
                 preventiveTasks={preventiveTasks}
                 onSignOffPreventiveTask={handleSignOffPMTask}
                 onOpenFullPreventiveSchedule={() => setActiveMode("preventive")}
@@ -1034,6 +1106,7 @@ export default function App() {
                 partStatus={partStatuses[selectedPartId] || "default"}
                 allPartStatuses={partStatuses}
                 onUpdatePartStatus={handleUpdatePartStatus}
+                openCases={caseLogs.filter((c) => currentEngine.openCaseIds.includes(c.id))}
               />
             )}
 

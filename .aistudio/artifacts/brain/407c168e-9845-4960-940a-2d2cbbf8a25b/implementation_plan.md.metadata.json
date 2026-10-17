@@ -1,6 +1,6 @@
 {
-  "summary": "Implementation plan for a prominent Defect & Required Fix Alert Banner in PartCard, displaying active defect summaries, governing AMM procedures, required maintenance actions, and cross-part alert navigation for affected red parts.",
-  "updatedAt": "2026-10-17T10:58:34.647744332Z",
+  "summary": "Comprehensive remediation plan addressing all 10 audited bugs: Tail Number & Crew Report synchronization, Dynamic Case-to-Defect Banner mapping, Closed-Loop Defect Sign-Off (fixing Zombie Red Lights), Realistic LLP & Flight Hour calculations, 3D Label Anti-Collision layout, Engine-Scoped History Logs, and replacing native window.alert().",
+  "updatedAt": "2026-10-17T12:57:40.809554368Z",
   "requestFeedback": true,
   "userFacing": true
 }

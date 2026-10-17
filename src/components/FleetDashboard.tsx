@@ -121,9 +121,31 @@ export function FleetDashboard({
     return engines;
   }, [selectedFlightNumber, engines]);
 
+  // Dynamically derive flight overallStatus and activeAlertCount from live engine states
+  const liveFlights = useMemo(() => {
+    return INDIGO_FLIGHTS.map((f) => {
+      const e1 = engines.find((e) => e.id === f.engine1Id);
+      const e2 = engines.find((e) => e.id === f.engine2Id);
+      const statuses = [e1?.status, e2?.status];
+      const overallStatus: FlightInfo["overallStatus"] = statuses.includes("action_required")
+        ? "action_required"
+        : statuses.includes("watch")
+        ? "watch"
+        : "normal";
+      const activeAlertCount =
+        (e1 && e1.status !== "normal" ? Math.max(1, e1.openCaseIds.length) : 0) +
+        (e2 && e2.status !== "normal" ? Math.max(1, e2.openCaseIds.length) : 0);
+      return {
+        ...f,
+        overallStatus,
+        activeAlertCount,
+      };
+    });
+  }, [engines]);
+
   // Filtered Flights List
   const filteredFlights = useMemo(() => {
-    let result = [...INDIGO_FLIGHTS];
+    let result = [...liveFlights];
 
     if (flightStationFilter !== "all") {
       result = result.filter(
@@ -156,7 +178,7 @@ export function FleetDashboard({
     }
 
     return result;
-  }, [flightStationFilter, flightStatusFilter, flightSearchQuery]);
+  }, [liveFlights, flightStationFilter, flightStatusFilter, flightSearchQuery]);
 
   // Engine Summary counts
   const engineCounts = useMemo(() => {
@@ -243,7 +265,7 @@ export function FleetDashboard({
 
   // If a specific flight is selected, render the dedicated FlightStatusView
   if (selectedFlightNumber) {
-    const flight = INDIGO_FLIGHTS.find((f) => f.flightNumber === selectedFlightNumber) || INDIGO_FLIGHTS[0];
+    const flight = liveFlights.find((f) => f.flightNumber === selectedFlightNumber) || liveFlights[0];
     const eng1 = engines.find((e) => e.id === flight.engine1Id);
     const eng2 = engines.find((e) => e.id === flight.engine2Id);
 

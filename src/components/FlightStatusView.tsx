@@ -54,8 +54,16 @@ export function FlightStatusView({
   theme,
   onToggleTheme,
 }: FlightStatusViewProps) {
-  const engine1Cases = caseLogs.filter((c) => c.engineId === flight.engine1Id);
-  const engine2Cases = caseLogs.filter((c) => c.engineId === flight.engine2Id);
+  const engine1Cases = caseLogs.filter((c) =>
+    engine1 ? engine1.openCaseIds.includes(c.id) : c.engineId === flight.engine1Id
+  );
+  const engine2Cases = caseLogs.filter((c) =>
+    engine2 ? engine2.openCaseIds.includes(c.id) : c.engineId === flight.engine2Id
+  );
+  const engine1Hours = Math.round((engine1?.cyclesSinceNew || 0) * 1.85);
+  const engine2Hours = Math.round((engine2?.cyclesSinceNew || 0) * 1.85);
+  const engine1LlpMargin = Math.max(0, 15000 - (engine1?.cyclesSinceNew || 0));
+  const engine2LlpMargin = Math.max(0, 15000 - (engine2?.cyclesSinceNew || 0));
 
   return (
     <div className="flex-1 overflow-y-auto bg-[#050a14] text-slate-100 p-4 sm:p-6 md:p-8 font-sans select-none">
@@ -130,7 +138,9 @@ export function FlightStatusView({
                         : "bg-emerald-400"
                     }`}
                   />
-                  {flight.statusLabel}
+                  {flight.overallStatus === "normal" && flight.statusLabel.includes("Hold")
+                    ? "Cleared for Dispatch (Normal)"
+                    : flight.statusLabel}
                 </span>
               </div>
 
@@ -209,11 +219,16 @@ export function FlightStatusView({
 
               {flight.overallStatus === "action_required" && (
                 <button
-                  onClick={() => onSelectEngine(flight.engine1Id, "incident")}
+                  onClick={() =>
+                    onSelectEngine(
+                      engine2?.status === "action_required" ? flight.engine2Id : flight.engine1Id,
+                      "explore"
+                    )
+                  }
                   className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-mono font-bold text-xs shrink-0 transition flex items-center gap-1 shadow-md shadow-rose-950/50"
                 >
                   <AlertTriangle className="w-3.5 h-3.5" />
-                  <span>Evaluate Finding & Rules</span>
+                  <span>Inspect Affected Engine & Fix</span>
                 </button>
               )}
             </div>
@@ -298,7 +313,7 @@ export function FlightStatusView({
                 <div>
                   <span className="text-[10px] uppercase text-slate-400 block font-normal">Flight Hours</span>
                   <span className="text-sm font-bold text-slate-200 tabular-nums">
-                    14,220 FH
+                    {engine1Hours.toLocaleString()} FH
                   </span>
                 </div>
                 <div>
@@ -319,14 +334,18 @@ export function FlightStatusView({
                 </div>
                 <div>
                   <span className="text-[10px] uppercase text-slate-400 block font-normal">LLP Margin</span>
-                  <span className="text-xs font-bold text-amber-300">
-                    800 cyc to HPT
+                  <span
+                    className={`text-xs font-bold ${
+                      engine1LlpMargin <= 1500 ? "text-amber-300" : "text-emerald-300"
+                    }`}
+                  >
+                    {engine1LlpMargin.toLocaleString()} cyc to HPT
                   </span>
                 </div>
                 <div>
                   <span className="text-[10px] uppercase text-slate-400 block font-normal">Governing Doc</span>
                   <span className="text-xs text-sky-400">
-                    AMM 72-00
+                    {engine1Cases[0]?.limitsRows[0]?.sourceDocId || "AMM 72-00"}
                   </span>
                 </div>
               </div>
@@ -336,20 +355,32 @@ export function FlightStatusView({
                 <div className="p-3.5 rounded-xl bg-rose-950/40 border border-rose-800/60 text-xs text-rose-200 space-y-1">
                   <div className="flex items-center gap-2 font-bold text-rose-300 font-mono">
                     <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-                    <span>ACTION REQUIRED: ABNORMAL VIBRATION DETECTED</span>
+                    <span>
+                      ACTION REQUIRED:{" "}
+                      {engine1Cases[0]
+                        ? `${engine1Cases[0].eventType.replace(/_/g, " ").toUpperCase()} (${engine1Cases[0].id})`
+                        : "MANDATORY LINE RECTIFICATION"}
+                    </span>
                   </div>
                   <p className="text-rose-200/90 leading-relaxed font-sans text-[11px]">
-                    N1 vibration exceeded 2.5 threshold. Per AMM 72-00 Task 200, perform visual and tactile inspection on Stage 1 Fan Blades and Fan Drive Gearbox magnetic chip detector prior to flight clearance.
+                    {engine1Cases[0]?.summary ||
+                      "Active airworthiness defect flagged on No.1 Engine. Open 3D Digital Twin to inspect red-light component and execute AMM rectification."}
                   </p>
                 </div>
               ) : engine1?.status === "watch" ? (
                 <div className="p-3.5 rounded-xl bg-amber-950/40 border border-amber-800/60 text-xs text-amber-200 space-y-1">
                   <div className="flex items-center gap-2 font-bold text-amber-300 font-mono">
                     <Clock className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span>WATCH STATUS: TREND MONITORING ACTIVE</span>
+                    <span>
+                      WATCH STATUS:{" "}
+                      {engine1Cases[0]
+                        ? `${engine1Cases[0].eventType.replace(/_/g, " ").toUpperCase()} (${engine1Cases[0].id})`
+                        : "TREND MONITORING ACTIVE"}
+                    </span>
                   </div>
                   <p className="text-amber-200/90 leading-relaxed font-sans text-[11px]">
-                    Subsystem operating parameters elevated within safe limits. Log technician borescope check or oil consumption rate during turnaround.
+                    {engine1Cases[0]?.summary ||
+                      "Subsystem operating parameters elevated within dispatchable Level 2 limits. Perform scheduled repetitive inspection."}
                   </p>
                 </div>
               ) : (
@@ -441,7 +472,7 @@ export function FlightStatusView({
                 <div>
                   <span className="text-[10px] uppercase text-slate-400 block font-normal">Flight Hours</span>
                   <span className="text-sm font-bold text-slate-200 tabular-nums">
-                    13,840 FH
+                    {engine2Hours.toLocaleString()} FH
                   </span>
                 </div>
                 <div>
@@ -462,14 +493,18 @@ export function FlightStatusView({
                 </div>
                 <div>
                   <span className="text-[10px] uppercase text-slate-400 block font-normal">LLP Margin</span>
-                  <span className="text-xs font-bold text-emerald-300">
-                    1,200 cyc to HPT
+                  <span
+                    className={`text-xs font-bold ${
+                      engine2LlpMargin <= 1500 ? "text-amber-300" : "text-emerald-300"
+                    }`}
+                  >
+                    {engine2LlpMargin.toLocaleString()} cyc to HPT
                   </span>
                 </div>
                 <div>
                   <span className="text-[10px] uppercase text-slate-400 block font-normal">Governing Doc</span>
                   <span className="text-xs text-sky-400">
-                    AMM 72-00
+                    {engine2Cases[0]?.limitsRows[0]?.sourceDocId || "AMM 72-00"}
                   </span>
                 </div>
               </div>
@@ -479,20 +514,32 @@ export function FlightStatusView({
                 <div className="p-3.5 rounded-xl bg-rose-950/40 border border-rose-800/60 text-xs text-rose-200 space-y-1">
                   <div className="flex items-center gap-2 font-bold text-rose-300 font-mono">
                     <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-                    <span>ACTION REQUIRED: INSPECTION DUE</span>
+                    <span>
+                      ACTION REQUIRED:{" "}
+                      {engine2Cases[0]
+                        ? `${engine2Cases[0].eventType.replace(/_/g, " ").toUpperCase()} (${engine2Cases[0].id})`
+                        : "MANDATORY LINE RECTIFICATION"}
+                    </span>
                   </div>
                   <p className="text-rose-200/90 leading-relaxed font-sans text-[11px]">
-                    Mandatory line inspection required per OEM technical publication before CRS airworthiness release.
+                    {engine2Cases[0]?.summary ||
+                      "Mandatory line inspection required per OEM technical publication before CRS airworthiness release."}
                   </p>
                 </div>
               ) : engine2?.status === "watch" ? (
                 <div className="p-3.5 rounded-xl bg-amber-950/40 border border-amber-800/60 text-xs text-amber-200 space-y-1">
                   <div className="flex items-center gap-2 font-bold text-amber-300 font-mono">
                     <Clock className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span>WATCH STATUS: OIL CONSUMPTION TREND</span>
+                    <span>
+                      WATCH STATUS:{" "}
+                      {engine2Cases[0]
+                        ? `${engine2Cases[0].eventType.replace(/_/g, " ").toUpperCase()} (${engine2Cases[0].id})`
+                        : "TREND MONITORING ACTIVE"}
+                    </span>
                   </div>
                   <p className="text-amber-200/90 leading-relaxed font-sans text-[11px]">
-                    Oil consumption trending at 0.18 qt/hr. Replenish oil tank and inspect accessory gearbox seal for leakage drops.
+                    {engine2Cases[0]?.summary ||
+                      "Subsystem operating parameters elevated within dispatchable Level 2 limits. Perform scheduled repetitive inspection."}
                   </p>
                 </div>
               ) : (
