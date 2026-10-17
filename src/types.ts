@@ -124,6 +124,11 @@ export interface UserSession {
   role: UserRole;
   homeBase: string; // e.g. "Bengaluru (BLR)"
   badge?: string; // e.g. "DGCA AME #8842"
+  uid?: string;
+  email?: string;
+  authProvider?: "firebase" | "demo";
+  assignedFlightNumbers?: string[];
+  assignedTailNumbers?: string[];
 }
 
 export interface AircraftEngine {
@@ -430,4 +435,16 @@ export interface FlightCRSRecord {
   releaseRemarks: string;
   signedAt: string;
 }
+
+export interface MROEngineerProfile {
+  uid: string;
+  displayName: string;
+  role: UserRole;
+  badge: string;
+  homeBase: string;
+  assignedFlightNumbers: string[];
+  assignedTailNumbers: string[];
+  updatedAt?: string;
+}
+
 

@@ -17,7 +17,16 @@ import {
   PMSignOffRecord,
   AppTheme,
   FlightCRSRecord,
+  MROEngineerProfile,
 } from "./types";
+import {
+  INITIAL_MRO_ROSTER,
+  signOutFromFirebase,
+  syncEngineerAssignmentToFirestore,
+  syncEngineStateToFirestore,
+  syncFlightCRSToFirestore,
+  syncRectificationLogToFirestore,
+} from "./services/firebase";
 import { ENGINE_PARTS } from "./data/parts";
 import {
   INITIAL_FLEET_ENGINES,
@@ -88,6 +97,45 @@ export default function App() {
       return null;
     }
   });
+
+  // 1a. MRO Personnel Roster & Aircraft Tail Assignments (CAR-145 RBAC)
+  const [mroRoster, setMroRoster] = useState<MROEngineerProfile[]>(() => {
+    try {
+      const saved = localStorage.getItem("engineiq_mro_roster_v3");
+      return saved ? JSON.parse(saved) : INITIAL_MRO_ROSTER;
+    } catch {
+      return INITIAL_MRO_ROSTER;
+    }
+  });
+
+  const handleUpdateEngineerProfile = (updatedProfile: MROEngineerProfile) => {
+    setMroRoster((prev) => {
+      const next = prev.map((p) => (p.uid === updatedProfile.uid ? updatedProfile : p));
+      try {
+        localStorage.setItem("engineiq_mro_roster_v3", JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    void syncEngineerAssignmentToFirestore(updatedProfile);
+  };
+
+  const handleAddEngineerProfile = (newProfile: MROEngineerProfile) => {
+    setMroRoster((prev) => {
+      const next = [...prev, newProfile];
+      try {
+        localStorage.setItem("engineiq_mro_roster_v3", JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    void syncEngineerAssignmentToFirestore(newProfile);
+  };
+
+  // Helper to resolve storage key based on whether user is in Isolated Trainee Sandbox or Live Operational Fleet
+  const isTraineeSandbox = session?.role === "Trainee";
+  const enginesStorageKey = isTraineeSandbox ? "engineiq_sandbox_engines_v3" : "engineiq_engines_v3";
+  const casesStorageKey = isTraineeSandbox ? "engineiq_sandbox_cases_v3" : "engineiq_case_logs_v3";
+  const historyStorageKey = isTraineeSandbox ? "engineiq_sandbox_history_v3" : "engineiq_component_history_v3";
+  const crsStorageKey = isTraineeSandbox ? "engineiq_sandbox_crs_v3" : "engineiq_flight_crs_v3";
 
   // 1b. App Theme State ("dark" | "light")
   const [theme, setTheme] = useState<AppTheme>(() => {
@@ -175,12 +223,16 @@ export default function App() {
     setComponentLogs((prev) => {
       const updated = [newEntry, ...prev];
       try {
-        localStorage.setItem("engineiq_component_history_v3", JSON.stringify(updated));
+        localStorage.setItem(historyStorageKey, JSON.stringify(updated));
       } catch (e) {
         console.warn("Failed to save component history", e);
       }
       return updated;
     });
+
+    if (session && !isTraineeSandbox) {
+      void syncRectificationLogToFirestore(newEntry, session);
+    }
 
     const partName = formatPartName(newEntry.partId);
     setLiveToast({
@@ -224,12 +276,16 @@ export default function App() {
     setFlightCRSRecords((prev) => {
       const updated = { ...prev, [record.flightNumber]: record };
       try {
-        localStorage.setItem("engineiq_flight_crs_v3", JSON.stringify(updated));
+        localStorage.setItem(crsStorageKey, JSON.stringify(updated));
       } catch (e) {
         console.warn("Failed to save flight CRS records", e);
       }
       return updated;
     });
+
+    if (session && !isTraineeSandbox) {
+      void syncFlightCRSToFirestore(record, session);
+    }
 
     setLiveToast({
       id: `toast-crs-${Date.now()}`,
@@ -410,9 +466,38 @@ export default function App() {
     return engines.slice(0, 2);
   }, [activeFlight, engines, currentEngine]);
 
+  // Reload operational vs trainee-sandbox data whenever role changes
+  const reloadWorkspaceDataForRole = (role: UserSession["role"]) => {
+    const isSandbox = role === "Trainee";
+    try {
+      const savedEngines = localStorage.getItem(
+        isSandbox ? "engineiq_sandbox_engines_v3" : "engineiq_engines_v3"
+      );
+      setEngines(savedEngines ? JSON.parse(savedEngines) : INITIAL_FLEET_ENGINES);
+
+      const savedCases = localStorage.getItem(
+        isSandbox ? "engineiq_sandbox_cases_v3" : "engineiq_case_logs_v3"
+      );
+      setCaseLogs(savedCases ? JSON.parse(savedCases) : INITIAL_FLEET_CASES);
+
+      const savedHistory = localStorage.getItem(
+        isSandbox ? "engineiq_sandbox_history_v3" : "engineiq_component_history_v3"
+      );
+      setComponentLogs(savedHistory ? JSON.parse(savedHistory) : INITIAL_COMPONENT_HISTORY);
+
+      const savedCrs = localStorage.getItem(
+        isSandbox ? "engineiq_sandbox_crs_v3" : "engineiq_flight_crs_v3"
+      );
+      setFlightCRSRecords(savedCrs ? JSON.parse(savedCrs) : {});
+    } catch {
+      // ignore
+    }
+  };
+
   // Sync session to localStorage
   const handleLogin = (userSession: UserSession) => {
     setSession(userSession);
+    reloadWorkspaceDataForRole(userSession.role);
     try {
       localStorage.setItem("engineiq_session", JSON.stringify(userSession));
     } catch {
@@ -420,7 +505,37 @@ export default function App() {
     }
   };
 
+  const handleSwitchSessionProfile = (profile: MROEngineerProfile) => {
+    const nextSession: UserSession = {
+      uid: profile.uid,
+      name: `${profile.displayName} (${profile.badge})`,
+      role: profile.role,
+      badge: profile.badge,
+      homeBase: profile.homeBase,
+      authProvider: session?.authProvider || "demo",
+      assignedFlightNumbers: profile.assignedFlightNumbers,
+      assignedTailNumbers: profile.assignedTailNumbers,
+    };
+    setSelectedFlightNumber(null);
+    setCurrentEngineId(null);
+    handleLogin(nextSession);
+    setLiveToast({
+      id: `toast-rbac-${Date.now()}`,
+      message: `Switched active RBAC view to ${profile.displayName} (${profile.role}) — ${
+        profile.role === "Supervisor"
+          ? "Full Fleet Access"
+          : profile.role === "Trainee"
+          ? "Isolated Sandbox Mode"
+          : `${profile.assignedTailNumbers.length} Assigned Aircraft Tail(s)`
+      }`,
+      engineId: "",
+      tailNumber: "",
+      level: 1,
+    });
+  };
+
   const handleLogout = () => {
+    void signOutFromFirebase();
     setSession(null);
     setCurrentEngineId(null);
     setSelectedFlightNumber(null);
@@ -552,7 +667,7 @@ export default function App() {
     const updatedLogs = [newCase, ...caseLogs];
     setCaseLogs(updatedLogs);
     try {
-      localStorage.setItem("engineiq_case_logs_v3", JSON.stringify(updatedLogs));
+      localStorage.setItem(casesStorageKey, JSON.stringify(updatedLogs));
     } catch {}
 
     // 2. Update engine status to action_required and prepend case ID
@@ -568,7 +683,7 @@ export default function App() {
         return eng;
       });
       try {
-        localStorage.setItem("engineiq_engines_v3", JSON.stringify(updated));
+        localStorage.setItem(enginesStorageKey, JSON.stringify(updated));
       } catch {}
       return updated;
     });
@@ -599,7 +714,7 @@ export default function App() {
     const updatedLogs = [entry, ...caseLogs];
     setCaseLogs(updatedLogs);
     try {
-      localStorage.setItem("engineiq_case_logs_v3", JSON.stringify(updatedLogs));
+      localStorage.setItem(casesStorageKey, JSON.stringify(updatedLogs));
     } catch {
       // ignore
     }
@@ -626,7 +741,7 @@ export default function App() {
           return eng;
         });
         try {
-          localStorage.setItem("engineiq_engines_v3", JSON.stringify(updatedEngines));
+          localStorage.setItem(enginesStorageKey, JSON.stringify(updatedEngines));
         } catch {
           // ignore
         }
@@ -638,7 +753,7 @@ export default function App() {
   const handleClearLogs = () => {
     setCaseLogs([]);
     try {
-      localStorage.removeItem("engineiq_case_logs_v3");
+      localStorage.removeItem(casesStorageKey);
     } catch {
       // ignore
     }
@@ -692,7 +807,7 @@ export default function App() {
             return c;
           });
           try {
-            localStorage.setItem("engineiq_case_logs_v3", JSON.stringify(updatedCases));
+            localStorage.setItem(casesStorageKey, JSON.stringify(updatedCases));
           } catch {}
           return updatedCases;
         });
@@ -702,16 +817,20 @@ export default function App() {
       setEngines((prevEngines) => {
         const updated = prevEngines.map((eng) => {
           if (eng.id === currentEngineId) {
-            return {
+            const nextEng = {
               ...eng,
               status: nextEngineStatus,
               openCaseIds: nextEngineStatus === "normal" ? [] : eng.openCaseIds,
             };
+            if (session && !isTraineeSandbox) {
+              void syncEngineStateToFirestore(nextEng, nextStatuses, session);
+            }
+            return nextEng;
           }
           return eng;
         });
         try {
-          localStorage.setItem("engineiq_engines_v3", JSON.stringify(updated));
+          localStorage.setItem(enginesStorageKey, JSON.stringify(updated));
         } catch {}
         return updated;
       });
@@ -722,9 +841,16 @@ export default function App() {
     setActiveMode(mode);
   };
 
-  // If not logged in, render the Mock Login Screen
+  // If not logged in, render the Login Screen with Firebase Auth + RBAC Roster
   if (!session) {
-    return <LoginView onLogin={handleLogin} theme={theme} onToggleTheme={toggleTheme} />;
+    return (
+      <LoginView
+        onLogin={handleLogin}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        roster={mroRoster}
+      />
+    );
   }
 
   // If logged in but no engine selected, render Fleet Dashboard
@@ -807,6 +933,10 @@ export default function App() {
           onToggleTheme={toggleTheme}
           crsRecords={flightCRSRecords}
           onIssueFlightCRS={handleIssueFlightCRS}
+          roster={mroRoster}
+          onUpdateEngineerProfile={handleUpdateEngineerProfile}
+          onAddEngineerProfile={handleAddEngineerProfile}
+          onSwitchSessionProfile={handleSwitchSessionProfile}
           onFlightChange={(fNum) => {
             setSelectedFlightNumber(fNum);
             try {

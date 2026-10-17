@@ -1,0 +1,296 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 1: Global Default-Deny Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core Hardened Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Bootstrapped Supervisor + Trusted User Profile Role Lookup
+    function isBootstrappedSupervisor() {
+      return isVerifiedUser() && request.auth.token.email == 'dheeraj.aimit@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedSupervisor() || (
+        isVerifiedUser() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Supervisor'
+      );
+    }
+
+    // Tail-Scoped RBAC Check for Assigned Certifying Engineers
+    function isAssignedEngineerForTail(tailNumber) {
+      return isVerifiedUser() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Engineer' &&
+        tailNumber in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.assignedTailNumbers;
+    }
+
+    function canAccessTail(tailNumber) {
+      return isAdmin() || isAssignedEngineerForTail(tailNumber);
+    }
+
+    // =========================================================================
+    // Validation Blueprints (Pillar 2 & Pillar 5)
+    // =========================================================================
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll([
+          'uid', 'displayName', 'role', 'badge', 'homeBase',
+          'assignedFlightNumbers', 'assignedTailNumbers', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'uid', 'displayName', 'role', 'badge', 'homeBase',
+          'assignedFlightNumbers', 'assignedTailNumbers', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.uid) &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+        data.role is string && data.role in ['Supervisor', 'Engineer', 'Trainee'] &&
+        data.badge is string && data.badge.size() >= 1 && data.badge.size() <= 64 &&
+        data.homeBase is string && data.homeBase.size() >= 1 && data.homeBase.size() <= 80 &&
+        data.assignedFlightNumbers is list && data.assignedFlightNumbers.size() <= 10 &&
+        (data.assignedFlightNumbers.size() == 0 || (data.assignedFlightNumbers[0] is string && data.assignedFlightNumbers[0].size() <= 32)) &&
+        data.assignedTailNumbers is list && data.assignedTailNumbers.size() <= 10 &&
+        (data.assignedTailNumbers.size() == 0 || (data.assignedTailNumbers[0] is string && data.assignedTailNumbers[0].size() <= 32)) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivateInfo(data) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'createdAt']) &&
+        isValidId(data.uid) &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidEngineStateDoc(data) {
+      return data.keys().hasAll([
+          'engineId', 'tailNumber', 'status', 'cyclesSinceNew',
+          'openCaseIds', 'partStatuses', 'updatedByUid', 'updatedByName', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'engineId', 'tailNumber', 'status', 'cyclesSinceNew',
+          'openCaseIds', 'partStatuses', 'updatedByUid', 'updatedByName', 'updatedAt'
+        ]) &&
+        isValidId(data.engineId) && data.engineId.size() <= 64 &&
+        data.tailNumber is string && data.tailNumber.size() >= 1 && data.tailNumber.size() <= 32 &&
+        data.status is string && data.status in ['normal', 'watch', 'action_required'] &&
+        data.cyclesSinceNew is number && data.cyclesSinceNew >= 0 && data.cyclesSinceNew <= 100000 &&
+        data.openCaseIds is list && data.openCaseIds.size() <= 10 &&
+        (data.openCaseIds.size() == 0 || (data.openCaseIds[0] is string && data.openCaseIds[0].size() <= 64)) &&
+        data.partStatuses is map && data.partStatuses.size() <= 15 &&
+        isValidId(data.updatedByUid) && data.updatedByUid == request.auth.uid &&
+        data.updatedByName is string && data.updatedByName.size() >= 1 && data.updatedByName.size() <= 100 &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidFlightCRSDoc(data) {
+      return data.keys().hasAll([
+          'flightId', 'flightNumber', 'aircraftTail', 'crsReferenceNumber',
+          'engineerUid', 'engineerName', 'engineerLicense',
+          'engine1OilUpliftQt', 'engine2OilUpliftQt', 'egtMarginDegC',
+          'fodWalkaroundCheck', 'releaseRemarks', 'signedAt', 'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'flightId', 'flightNumber', 'aircraftTail', 'crsReferenceNumber',
+          'engineerUid', 'engineerName', 'engineerLicense',
+          'engine1OilUpliftQt', 'engine2OilUpliftQt', 'egtMarginDegC',
+          'fodWalkaroundCheck', 'releaseRemarks', 'signedAt', 'createdAt'
+        ]) &&
+        isValidId(data.flightId) && data.flightId.size() <= 64 &&
+        data.flightNumber is string && data.flightNumber.size() >= 1 && data.flightNumber.size() <= 32 &&
+        data.aircraftTail is string && data.aircraftTail.size() >= 1 && data.aircraftTail.size() <= 32 &&
+        data.crsReferenceNumber is string && data.crsReferenceNumber.size() >= 1 && data.crsReferenceNumber.size() <= 64 &&
+        isValidId(data.engineerUid) && data.engineerUid == request.auth.uid &&
+        data.engineerName is string && data.engineerName.size() >= 1 && data.engineerName.size() <= 100 &&
+        data.engineerLicense is string && data.engineerLicense.size() >= 1 && data.engineerLicense.size() <= 64 &&
+        data.engine1OilUpliftQt is number && data.engine1OilUpliftQt >= 0 && data.engine1OilUpliftQt <= 50 &&
+        data.engine2OilUpliftQt is number && data.engine2OilUpliftQt >= 0 && data.engine2OilUpliftQt <= 50 &&
+        data.egtMarginDegC is number && data.egtMarginDegC >= -50 && data.egtMarginDegC <= 200 &&
+        data.fodWalkaroundCheck is string && data.fodWalkaroundCheck.size() >= 1 && data.fodWalkaroundCheck.size() <= 160 &&
+        data.releaseRemarks is string && data.releaseRemarks.size() >= 1 && data.releaseRemarks.size() <= 500 &&
+        data.signedAt is string && data.signedAt.size() >= 1 && data.signedAt.size() <= 64 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidRectificationLogDoc(data) {
+      return data.keys().hasAll([
+          'logId', 'engineId', 'tailNumber', 'partId', 'logType', 'status',
+          'description', 'findings', 'actionTaken', 'workOrderNumber',
+          'engineerUid', 'engineerName', 'engineerLicense',
+          'engineCycles', 'engineHours', 'date', 'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'logId', 'engineId', 'tailNumber', 'partId', 'logType', 'status',
+          'description', 'findings', 'actionTaken', 'workOrderNumber',
+          'engineerUid', 'engineerName', 'engineerLicense',
+          'engineCycles', 'engineHours', 'date', 'createdAt'
+        ]) &&
+        isValidId(data.logId) &&
+        data.engineId is string && data.engineId.size() >= 1 && data.engineId.size() <= 64 &&
+        data.tailNumber is string && data.tailNumber.size() >= 1 && data.tailNumber.size() <= 32 &&
+        data.partId is string && data.partId.size() >= 1 && data.partId.size() <= 64 &&
+        data.logType is string && data.logType.size() >= 1 && data.logType.size() <= 64 &&
+        data.status is string && data.status in ['passed', 'finding_noted', 'rectified'] &&
+        data.description is string && data.description.size() >= 1 && data.description.size() <= 600 &&
+        data.findings is string && data.findings.size() >= 1 && data.findings.size() <= 600 &&
+        data.actionTaken is string && data.actionTaken.size() >= 1 && data.actionTaken.size() <= 600 &&
+        data.workOrderNumber is string && data.workOrderNumber.size() >= 1 && data.workOrderNumber.size() <= 64 &&
+        isValidId(data.engineerUid) && data.engineerUid == request.auth.uid &&
+        data.engineerName is string && data.engineerName.size() >= 1 && data.engineerName.size() <= 100 &&
+        data.engineerLicense is string && data.engineerLicense.size() >= 1 && data.engineerLicense.size() <= 64 &&
+        data.engineCycles is number && data.engineCycles >= 0 && data.engineCycles <= 100000 &&
+        data.engineHours is number && data.engineHours >= 0 && data.engineHours <= 250000 &&
+        data.date is string && data.date.size() >= 1 && data.date.size() <= 64 &&
+        data.createdAt is timestamp;
+    }
+
+    // =========================================================================
+    // Collection 1: /users/{userId} (Public RBAC & Tail Roster Profile - No PII)
+    // =========================================================================
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+
+      allow create: if isVerifiedUser() &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == userId &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (
+          (isOwner(userId) && (incoming().role in ['Engineer', 'Trainee'] || isBootstrappedSupervisor())) ||
+          isAdmin()
+        );
+
+      allow update: if isVerifiedUser() &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          // Action 1: Owner updates their own displayName, badge, or homeBase (cannot change role or assignments)
+          (
+            isOwner(userId) &&
+            incoming().role == existing().role &&
+            incoming().assignedFlightNumbers == existing().assignedFlightNumbers &&
+            incoming().assignedTailNumbers == existing().assignedTailNumbers &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'badge', 'homeBase', 'updatedAt'])
+          ) ||
+          // Action 2: Supervisor updates engineer role or flight/tail assignments
+          (
+            isAdmin() &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'displayName', 'role', 'badge', 'homeBase',
+              'assignedFlightNumbers', 'assignedTailNumbers', 'updatedAt'
+            ])
+          )
+        );
+
+      // Subcollection: /users/{userId}/private/{infoId} (Pillar 6 PII Isolation)
+      match /private/{infoId} {
+        allow get: if isSignedIn() &&
+          isValidId(userId) &&
+          isValidId(infoId) &&
+          exists(/databases/$(database)/documents/users/$(userId)) &&
+          (isOwner(userId) || isAdmin());
+
+        allow create: if isVerifiedUser() &&
+          isValidId(userId) &&
+          isValidId(infoId) &&
+          isOwner(userId) &&
+          isValidUserPrivateInfo(incoming()) &&
+          incoming().uid == userId &&
+          incoming().createdAt == request.time &&
+          existsAfter(/databases/$(database)/documents/users/$(userId));
+      }
+    }
+
+    // =========================================================================
+    // Collection 2: /engine_states/{engineId} (Scoped by Tail RBAC)
+    // =========================================================================
+    match /engine_states/{engineId} {
+      allow get: if isSignedIn() &&
+        isValidId(engineId) &&
+        canAccessTail(existing().tailNumber);
+
+      allow create: if isVerifiedUser() &&
+        isValidId(engineId) &&
+        isValidEngineStateDoc(incoming()) &&
+        incoming().engineId == engineId &&
+        incoming().updatedAt == request.time &&
+        canAccessTail(incoming().tailNumber);
+
+      allow update: if isVerifiedUser() &&
+        isValidId(engineId) &&
+        isValidEngineStateDoc(incoming()) &&
+        incoming().engineId == existing().engineId &&
+        incoming().tailNumber == existing().tailNumber &&
+        incoming().updatedAt == request.time &&
+        canAccessTail(existing().tailNumber) &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'status', 'cyclesSinceNew', 'openCaseIds', 'partStatuses',
+          'updatedByUid', 'updatedByName', 'updatedAt'
+        ]);
+    }
+
+    // =========================================================================
+    // Collection 3: /flight_crs/{flightId} (Terminal Dispatch Release Certificate)
+    // =========================================================================
+    match /flight_crs/{flightId} {
+      allow get: if isSignedIn() &&
+        isValidId(flightId) &&
+        canAccessTail(existing().aircraftTail);
+
+      allow create: if isVerifiedUser() &&
+        isValidId(flightId) &&
+        isValidFlightCRSDoc(incoming()) &&
+        incoming().flightId == flightId &&
+        incoming().createdAt == request.time &&
+        canAccessTail(incoming().aircraftTail);
+    }
+
+    // =========================================================================
+    // Collection 4: /rectification_logs/{logId} (Immutable Audit Log Entries)
+    // =========================================================================
+    match /rectification_logs/{logId} {
+      allow get: if isSignedIn() &&
+        isValidId(logId) &&
+        canAccessTail(existing().tailNumber);
+
+      allow create: if isVerifiedUser() &&
+        isValidId(logId) &&
+        isValidRectificationLogDoc(incoming()) &&
+        incoming().logId == logId &&
+        incoming().createdAt == request.time &&
+        canAccessTail(incoming().tailNumber);
+    }
+  }
+}

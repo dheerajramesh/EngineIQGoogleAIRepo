@@ -1,0 +1,417 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Public MRO RBAC profile and aircraft tail/flight roster assignments for an engineer, supervisor, or trainee.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the user",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Full name of the certifying engineer or supervisor",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "role": {
+          "type": "string",
+          "description": "RBAC role in the MRO system",
+          "enum": ["Supervisor", "Engineer", "Trainee"],
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "badge": {
+          "type": "string",
+          "description": "DGCA / EASA Part-66 AME License or Badge ID",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "homeBase": {
+          "type": "string",
+          "description": "Primary line maintenance station code and name",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "assignedFlightNumbers": {
+          "type": "array",
+          "description": "Bounded list (max 10) of flight numbers assigned to this engineer by the Supervisor"
+        },
+        "assignedTailNumbers": {
+          "type": "array",
+          "description": "Bounded list (max 10) of aircraft tail registrations assigned to this engineer by the Supervisor"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of profile creation"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last profile or assignment update"
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "role",
+        "badge",
+        "homeBase",
+        "assignedFlightNumbers",
+        "assignedTailNumbers",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "Isolated PII document storing the user's email address.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Verified email address of the user",
+          "minLength": 3,
+          "maxLength": 160
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        }
+      },
+      "required": ["uid", "email", "createdAt"]
+    },
+    "EngineStateDoc": {
+      "title": "EngineStateDoc",
+      "description": "Live operational status and 3D subsystem statuses of a PW1100G-JM engine.",
+      "type": "object",
+      "properties": {
+        "engineId": {
+          "type": "string",
+          "description": "Engine identifier (e.g. VT-DEM1-ENG2)",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "tailNumber": {
+          "type": "string",
+          "description": "Aircraft tail registration (e.g. VT-IZB)",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "status": {
+          "type": "string",
+          "description": "Engine operational status",
+          "enum": ["normal", "watch", "action_required"],
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "cyclesSinceNew": {
+          "type": "number",
+          "description": "Total flight cycles since new (CSN)"
+        },
+        "openCaseIds": {
+          "type": "array",
+          "description": "Bounded list (max 10) of active open case IDs on this engine"
+        },
+        "partStatuses": {
+          "type": "object",
+          "description": "Map of 10 engine subsystem PartIds to PartStatus"
+        },
+        "updatedByUid": {
+          "type": "string",
+          "description": "UID of the engineer or supervisor who last updated this engine",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "updatedByName": {
+          "type": "string",
+          "description": "Display name of the engineer or supervisor who last updated this engine",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the last status update"
+        }
+      },
+      "required": [
+        "engineId",
+        "tailNumber",
+        "status",
+        "cyclesSinceNew",
+        "openCaseIds",
+        "partStatuses",
+        "updatedByUid",
+        "updatedByName",
+        "updatedAt"
+      ]
+    },
+    "FlightCRSDoc": {
+      "title": "FlightCRSDoc",
+      "description": "Signed Certificate of Release to Service (CRS) for an aircraft flight turnaround.",
+      "type": "object",
+      "properties": {
+        "flightId": {
+          "type": "string",
+          "description": "Sanitized flight ID (e.g. 6E-204)",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "flightNumber": {
+          "type": "string",
+          "description": "Flight number (e.g. 6E 204)",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "aircraftTail": {
+          "type": "string",
+          "description": "Aircraft tail registration (e.g. VT-IZB)",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "crsReferenceNumber": {
+          "type": "string",
+          "description": "Official CRS release certificate reference",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "engineerUid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the certifying engineer",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "engineerName": {
+          "type": "string",
+          "description": "Full name of the certifying engineer",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "engineerLicense": {
+          "type": "string",
+          "description": "AME License ID of the certifying engineer",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "engine1OilUpliftQt": {
+          "type": "number",
+          "description": "No.1 engine oil uplift in quarts"
+        },
+        "engine2OilUpliftQt": {
+          "type": "number",
+          "description": "No.2 engine oil uplift in quarts"
+        },
+        "egtMarginDegC": {
+          "type": "number",
+          "description": "Verified EGT margin in degrees Celsius"
+        },
+        "fodWalkaroundCheck": {
+          "type": "string",
+          "description": "Walkaround and FOD verification status",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "releaseRemarks": {
+          "type": "string",
+          "description": "Technical logbook release statement",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "signedAt": {
+          "type": "string",
+          "description": "Formatted IST time of signature",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when CRS was issued"
+        }
+      },
+      "required": [
+        "flightId",
+        "flightNumber",
+        "aircraftTail",
+        "crsReferenceNumber",
+        "engineerUid",
+        "engineerName",
+        "engineerLicense",
+        "engine1OilUpliftQt",
+        "engine2OilUpliftQt",
+        "egtMarginDegC",
+        "fodWalkaroundCheck",
+        "releaseRemarks",
+        "signedAt",
+        "createdAt"
+      ]
+    },
+    "RectificationLogDoc": {
+      "title": "RectificationLogDoc",
+      "description": "Component measurement or post-repair defect rectification log entry.",
+      "type": "object",
+      "properties": {
+        "logId": {
+          "type": "string",
+          "description": "Unique log identifier",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "engineId": {
+          "type": "string",
+          "description": "Engine identifier",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "tailNumber": {
+          "type": "string",
+          "description": "Aircraft tail registration",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "partId": {
+          "type": "string",
+          "description": "Engine subsystem part identifier",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "logType": {
+          "type": "string",
+          "description": "Maintenance log category",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "status": {
+          "type": "string",
+          "description": "Inspection or rectification outcome",
+          "enum": ["passed", "finding_noted", "rectified"],
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the check or rectification work",
+          "minLength": 1,
+          "maxLength": 600
+        },
+        "findings": {
+          "type": "string",
+          "description": "Recorded micrometer reading or defect finding",
+          "minLength": 1,
+          "maxLength": 600
+        },
+        "actionTaken": {
+          "type": "string",
+          "description": "Corrective action performed per AMM",
+          "minLength": 1,
+          "maxLength": 600
+        },
+        "workOrderNumber": {
+          "type": "string",
+          "description": "Work Order reference number",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "engineerUid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the recording engineer",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "engineerName": {
+          "type": "string",
+          "description": "Name of the recording engineer",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "engineerLicense": {
+          "type": "string",
+          "description": "AME License ID",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "engineCycles": {
+          "type": "number",
+          "description": "Engine CSN at time of log"
+        },
+        "engineHours": {
+          "type": "number",
+          "description": "Engine FH at time of log"
+        },
+        "date": {
+          "type": "string",
+          "description": "Date string (YYYY-MM-DD)",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of log creation"
+        }
+      },
+      "required": [
+        "logId",
+        "engineId",
+        "tailNumber",
+        "partId",
+        "logType",
+        "status",
+        "description",
+        "findings",
+        "actionTaken",
+        "workOrderNumber",
+        "engineerUid",
+        "engineerName",
+        "engineerLicense",
+        "engineCycles",
+        "engineHours",
+        "date",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Public RBAC user profiles and aircraft tail/flight roster assignments."
+    },
+    "/users/{userId}/private/{infoId}": {
+      "schema": { "$ref": "#/entities/UserPrivateInfo" },
+      "description": "Isolated PII storage for user email addresses."
+    },
+    "/engine_states/{engineId}": {
+      "schema": { "$ref": "#/entities/EngineStateDoc" },
+      "description": "Live operational status and 3D part statuses of fleet engines."
+    },
+    "/flight_crs/{flightId}": {
+      "schema": { "$ref": "#/entities/FlightCRSDoc" },
+      "description": "Signed Certificate of Release to Service (CRS) dispatch records per flight."
+    },
+    "/rectification_logs/{logId}": {
+      "schema": { "$ref": "#/entities/RectificationLogDoc" },
+      "description": "Shared operational component measurement and rectification audit logs."
+    }
+  }
+}

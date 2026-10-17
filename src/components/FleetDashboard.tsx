@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo } from "react";
-import { AircraftEngine, CaseLogEntry, UserSession, FlightInfo, AppTheme, FlightCRSRecord } from "../types";
+import { AircraftEngine, CaseLogEntry, UserSession, FlightInfo, AppTheme, FlightCRSRecord, MROEngineerProfile } from "../types";
 import { WORST_LLP_CYCLE_LIMIT, FLEET_LOCATIONS } from "../data/fleet";
 import { INDIGO_FLIGHTS } from "../data/flights";
 import { FlightStatusView } from "./FlightStatusView";
@@ -12,6 +12,7 @@ import { SimulateIncidentModal } from "./SimulateIncidentModal";
 import { EvaluationView } from "./EvaluationView";
 import { ThemeToggle } from "./ThemeToggle";
 import { SearchGroundingModal } from "./SearchGroundingModal";
+import { RBACManagerModal } from "./RBACManagerModal";
 import {
   ShieldAlert,
   Plane,
@@ -60,6 +61,10 @@ interface FleetDashboardProps {
   onToggleTheme?: () => void;
   crsRecords?: Record<string, FlightCRSRecord>;
   onIssueFlightCRS?: (record: FlightCRSRecord) => void;
+  roster?: MROEngineerProfile[];
+  onUpdateEngineerProfile?: (profile: MROEngineerProfile) => void;
+  onAddEngineerProfile?: (profile: MROEngineerProfile) => void;
+  onSwitchSessionProfile?: (profile: MROEngineerProfile) => void;
 }
 
 export function FleetDashboard({
@@ -76,6 +81,10 @@ export function FleetDashboard({
   onToggleTheme,
   crsRecords = {},
   onIssueFlightCRS,
+  roster = [],
+  onUpdateEngineerProfile,
+  onAddEngineerProfile,
+  onSwitchSessionProfile,
 }: FleetDashboardProps) {
   // Selected flight for detailed flight status view
   const [selectedFlightNumber, setSelectedFlightNumber] = useState<string | null>(initialFlightNumber);
@@ -113,17 +122,46 @@ export function FleetDashboard({
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [searchModalInitialQuery, setSearchModalInitialQuery] = useState("");
 
+  // RBAC Roster & Engineer Tail Assignment Modal state
+  const [isRBACModalOpen, setIsRBACModalOpen] = useState(false);
+
+  // Determine active user's allowed aircraft tails under CAR-145 RBAC
+  const allowedTailNumbers = useMemo(() => {
+    if (session.role === "Supervisor") {
+      return INDIGO_FLIGHTS.map((f) => f.aircraftTail);
+    }
+    const cleanName = session.name.split(" (")[0].toLowerCase().trim();
+    const matchedProfile = roster.find(
+      (r) =>
+        (session.uid && r.uid === session.uid) ||
+        r.displayName.toLowerCase().trim() === cleanName
+    );
+    if (matchedProfile && matchedProfile.assignedTailNumbers.length > 0) {
+      return matchedProfile.assignedTailNumbers;
+    }
+    if (session.assignedTailNumbers && session.assignedTailNumbers.length > 0) {
+      return session.assignedTailNumbers;
+    }
+    return ["VT-IZB", "VT-ITG", "VT-IMR", "VT-IFA"];
+  }, [session, roster]);
+
+  // Scoped engines visible to this user under RBAC
+  const rbacEngines = useMemo(() => {
+    if (session.role === "Supervisor") return engines;
+    return engines.filter((e) => allowedTailNumbers.includes(e.tailNumber));
+  }, [engines, session.role, allowedTailNumbers]);
+
   // Engines strictly scoped for simulation when a flight is active
   const modalEngines = useMemo(() => {
     if (selectedFlightNumber) {
       const flight = INDIGO_FLIGHTS.find((f) => f.flightNumber === selectedFlightNumber);
       if (flight) {
-        const flightEngs = engines.filter((e) => e.id === flight.engine1Id || e.id === flight.engine2Id);
+        const flightEngs = rbacEngines.filter((e) => e.id === flight.engine1Id || e.id === flight.engine2Id);
         if (flightEngs.length > 0) return flightEngs;
       }
     }
-    return engines;
-  }, [selectedFlightNumber, engines]);
+    return rbacEngines;
+  }, [selectedFlightNumber, rbacEngines]);
 
   // Dynamically derive flight overallStatus, statusLabel, and activeAlertCount from live engine states & CRS records
   const liveFlights = useMemo(() => {
@@ -159,9 +197,11 @@ export function FleetDashboard({
     });
   }, [engines, crsRecords]);
 
-  // Filtered Flights List
+  // Filtered Flights List (RBAC-Scoped for Engineers/Trainees, Full System for Supervisor)
   const filteredFlights = useMemo(() => {
-    let result = [...liveFlights];
+    let result = liveFlights.filter((f) =>
+      session.role === "Supervisor" ? true : allowedTailNumbers.includes(f.aircraftTail)
+    );
 
     if (flightStationFilter !== "all") {
       result = result.filter(
@@ -194,20 +234,20 @@ export function FleetDashboard({
     }
 
     return result;
-  }, [liveFlights, flightStationFilter, flightStatusFilter, flightSearchQuery]);
+  }, [liveFlights, session.role, allowedTailNumbers, flightStationFilter, flightStatusFilter, flightSearchQuery]);
 
-  // Engine Summary counts
+  // Engine Summary counts (RBAC-Scoped)
   const engineCounts = useMemo(() => {
-    const actionRequired = engines.filter((e) => e.status === "action_required").length;
-    const watch = engines.filter((e) => e.status === "watch").length;
-    const normal = engines.filter((e) => e.status === "normal").length;
-    const total = engines.length;
+    const actionRequired = rbacEngines.filter((e) => e.status === "action_required").length;
+    const watch = rbacEngines.filter((e) => e.status === "watch").length;
+    const normal = rbacEngines.filter((e) => e.status === "normal").length;
+    const total = rbacEngines.length;
     return { actionRequired, watch, normal, total };
-  }, [engines]);
+  }, [rbacEngines]);
 
-  // Filtered & Sorted Engine List
+  // Filtered & Sorted Engine List (RBAC-Scoped)
   const filteredEngines = useMemo(() => {
-    let result = [...engines];
+    let result = [...rbacEngines];
 
     if (statusFilter !== "all") {
       result = result.filter((e) => e.status === statusFilter);
@@ -245,11 +285,13 @@ export function FleetDashboard({
     });
 
     return result;
-  }, [engines, statusFilter, locationFilter, searchQuery, sortBy]);
+  }, [rbacEngines, statusFilter, locationFilter, searchQuery, sortBy]);
 
-  // Filtered & Sorted Case Logs
+  // Filtered & Sorted Case Logs (RBAC-Scoped)
   const filteredCases = useMemo(() => {
-    let result = [...caseLogs];
+    let result = caseLogs.filter((c) =>
+      session.role === "Supervisor" ? true : !c.tailNumber || allowedTailNumbers.includes(c.tailNumber)
+    );
 
     if (caseSearchQuery.trim()) {
       const q = caseSearchQuery.toLowerCase().trim();
@@ -375,7 +417,7 @@ export function FleetDashboard({
               }`}
             >
               <Plane className="w-3.5 h-3.5" />
-              <span>Active Flights ({INDIGO_FLIGHTS.length})</span>
+              <span>Active Flights ({filteredFlights.length})</span>
             </button>
 
             <button
@@ -388,7 +430,7 @@ export function FleetDashboard({
               }`}
             >
               <Cpu className="w-3.5 h-3.5" />
-              <span>Fleet Engines ({engines.length})</span>
+              <span>Fleet Engines ({rbacEngines.length})</span>
             </button>
 
             <button
@@ -401,7 +443,7 @@ export function FleetDashboard({
               }`}
             >
               <FileText className="w-3.5 h-3.5" />
-              <span>Case Log ({caseLogs.length})</span>
+              <span>Case Log ({filteredCases.length})</span>
             </button>
 
             <button
@@ -417,6 +459,20 @@ export function FleetDashboard({
               <span>Evaluation (8/8)</span>
             </button>
           </nav>
+
+          {/* RBAC & Engineer Tail Assignment Console Button */}
+          <button
+            id="btn-open-rbac-manager"
+            onClick={() => setIsRBACModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/90 hover:bg-emerald-900/90 text-emerald-300 hover:text-white border border-emerald-700/80 text-xs font-mono font-bold transition cursor-pointer shadow-sm"
+            title="Open CAR-145 RBAC & Engineer Tail Assignment Console"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden sm:inline">
+              {session.role === "Supervisor" ? "RBAC & Assign Engineers" : "RBAC Scope"}
+            </span>
+            <span className="sm:hidden">RBAC</span>
+          </button>
 
           {/* Live AD & OEM Search Grounding Button (Google Search Grounding) */}
           <button
@@ -514,6 +570,63 @@ export function FleetDashboard({
 
       {/* 3. Main Dashboard Body */}
       <main className="flex-1 p-4 sm:p-6 md:p-8 space-y-6 overflow-y-auto max-w-7xl mx-auto w-full">
+        {/* RBAC Scope & Data Isolation Status Strip */}
+        <div
+          className={`p-3.5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono ${
+            session.role === "Supervisor"
+              ? "bg-sky-950/35 border-sky-500/40 text-sky-200"
+              : session.role === "Engineer"
+              ? "bg-emerald-950/35 border-emerald-500/40 text-emerald-200"
+              : "bg-amber-950/35 border-amber-500/40 text-amber-200"
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className={`p-2 rounded-xl shrink-0 ${
+                session.role === "Supervisor"
+                  ? "bg-sky-500/20 text-sky-400"
+                  : session.role === "Engineer"
+                  ? "bg-emerald-500/20 text-emerald-400"
+                  : "bg-amber-500/20 text-amber-400"
+              }`}
+            >
+              <ShieldCheck className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="font-bold uppercase tracking-wide flex flex-wrap items-center gap-2">
+                <span>
+                  {session.role === "Supervisor"
+                    ? "MCC Fleet Supervisor Authority — Full System Access (All 8 Flights • 16 Engines)"
+                    : session.role === "Engineer"
+                    ? `CAR-145 Assigned Line Engineer Scope — Authorized for ${allowedTailNumbers.length} Aircraft Tail(s)`
+                    : "Isolated Trainee Sandbox — Private Practice Container"}
+                </span>
+                <span className="px-2 py-0.2 rounded bg-slate-950/80 border border-slate-700 text-[10px] text-slate-300">
+                  {session.authProvider === "firebase" ? "Firebase Auth Verified" : "Firebase RBAC Policy Enforced"}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-300 font-sans mt-0.5">
+                {session.role === "Supervisor"
+                  ? "You have full visibility across all line stations and can assign specific aircraft tails to Certifying Line Engineers."
+                  : session.role === "Engineer"
+                  ? `Assigned Aircraft Tails: ${allowedTailNumbers.join(", ")}. Unassigned aircraft are hidden so engineers never interfere with another team's turnaround.`
+                  : "Any simulated incidents, gauge measurements, or practice sign-offs you perform are isolated to your personal sandbox and invisible to other users."}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsRBACModalOpen(true)}
+            className="shrink-0 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white border border-slate-700 font-mono font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span>
+              {session.role === "Supervisor" ? "Assign Engineers & Tails" : "View RBAC Assignments / Switch Role"}
+            </span>
+          </button>
+        </div>
+
         {/* ========================================================================= */}
         {/* TAB 1: ACTIVE FLIGHTS & TURNAROUND SCHEDULE (PRIMARY USER FLOW) */}
         {/* ========================================================================= */}
@@ -1038,6 +1151,17 @@ export function FleetDashboard({
         isOpen={isSearchModalOpen}
         onClose={() => setIsSearchModalOpen(false)}
         initialQuery={searchModalInitialQuery}
+      />
+
+      {/* CAR-145 RBAC & Engineer Tail Assignment Console */}
+      <RBACManagerModal
+        isOpen={isRBACModalOpen}
+        onClose={() => setIsRBACModalOpen(false)}
+        roster={roster}
+        onUpdateEngineerProfile={(p) => onUpdateEngineerProfile?.(p)}
+        onAddEngineerProfile={(p) => onAddEngineerProfile?.(p)}
+        onImpersonateProfile={(p) => onSwitchSessionProfile?.(p)}
+        currentSession={session}
       />
     </div>
   );

@@ -53,6 +53,33 @@ app.get("/api/health", (_req, res) => {
     status: "ok",
     hasApiKey: Boolean(process.env.GEMINI_API_KEY),
     model: "gemini-3.8-flash",
+    rbacEnforced: true,
+    firebaseDatabaseId: "ai-studio-engineiq-407c168e-9845-4960-940a-2d2cbbf8a25b",
+  });
+});
+
+// CAR-145 / Part-145 RBAC Policy Endpoint
+app.get("/api/rbac/policy", (_req, res) => {
+  res.json({
+    standard: "DGCA CAR-145 / EASA Part-145 MRO Access Control",
+    benchmarks: ["Swiss-AS AMOS", "Airbus Skywise", "Lufthansa Technik AVIATAR"],
+    tiers: {
+      Supervisor: {
+        scope: "Full Fleet (8 Flights, 16 Engines, All Stations)",
+        canAssignEngineers: true,
+        canWriteAllTails: true,
+      },
+      Engineer: {
+        scope: "Assigned Aircraft Tails & Flights Only",
+        canAssignEngineers: false,
+        canWriteAssignedTails: true,
+      },
+      Trainee: {
+        scope: "Isolated Personal Sandbox Container",
+        canAssignEngineers: false,
+        canWriteLiveFleet: false,
+      },
+    },
   });
 });
 

@@ -4,7 +4,9 @@
  */
 
 import React, { useState } from "react";
-import { UserRole, UserSession } from "../types";
+import { MROEngineerProfile, UserRole, UserSession } from "../types";
+import { signInWithGoogleAndSyncProfile } from "../services/firebase";
+import { INDIGO_FLIGHTS } from "../data/flights";
 import {
   Wrench,
   ShieldCheck,
@@ -20,6 +22,8 @@ import {
   Layers,
   MapPin,
   Lock,
+  Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { AppTheme } from "../types";
@@ -28,70 +32,128 @@ interface LoginViewProps {
   onLogin: (session: UserSession) => void;
   theme?: AppTheme;
   onToggleTheme?: () => void;
+  roster?: MROEngineerProfile[];
 }
 
 interface DemoPersona {
+  uid: string;
   role: UserRole;
   name: string;
   badge: string;
   title: string;
   base: string;
   stationName: string;
+  accessScopeLabel: string;
   description: string;
 }
 
 const DEMO_PERSONAS: DemoPersona[] = [
   {
+    uid: "sup-ananya-sharma",
+    role: "Supervisor",
+    name: "Ananya Sharma",
+    badge: "DGCA MCC #1104",
+    title: "MCC Fleet Supervisor & CAMO Lead",
+    base: "Delhi (DEL)",
+    stationName: "Indira Gandhi International T3",
+    accessScopeLabel: "Full Fleet (8 Flights • 16 Engines) + RBAC Admin",
+    description: "Unrestricted fleet visibility, engineer tail assignment authority, and CRS audit control.",
+  },
+  {
+    uid: "eng-vikram-malhotra",
     role: "Engineer",
     name: "Vikram Malhotra",
     badge: "DGCA AME #8842",
     title: "Lead Line Maintenance Engineer",
-    base: "Delhi (DEL)",
-    stationName: "Indira Gandhi International T3",
-    description: "Line station dispatch, transit checks, borescope inspections, and defect evaluation.",
-  },
-  {
-    role: "Supervisor",
-    name: "Dr. Aarti Sen",
-    badge: "CAMO / DGCA IA #4102",
-    title: "Chief Powerplant CAMO Specialist",
     base: "Bengaluru (BLR)",
-    stationName: "Kempegowda MRO Base",
-    description: "Fleet-wide propulsion reliability, LLP cycle limits, AD/SB tracking, and AOG escalation.",
+    stationName: "Kempegowda International",
+    accessScopeLabel: "Assigned Tails Only (VT-IZB, VT-ITG, VT-IMR, VT-IFA)",
+    description: "Line station dispatch, micrometer measurements, and AMM rectification on assigned aircraft.",
   },
   {
+    uid: "trn-arjun-reddy",
     role: "Trainee",
-    name: "Siddharth Roy",
-    badge: "A&P Trainee #2041",
-    title: "Airside Maintenance Technician",
-    base: "Mumbai (BOM)",
-    stationName: "Chhatrapati Shivaji Terminal 2",
-    description: "Ramp turnarounds, oil replenishment, visual inspections, and supervised training logs.",
+    name: "Arjun Reddy",
+    badge: "TRN-HYD-2026",
+    title: "Under-Instruction Line Technician",
+    base: "Hyderabad (HYD)",
+    stationName: "GMR Aero Technic MRO",
+    accessScopeLabel: "Isolated Personal Sandbox (Private to You)",
+    description: "Practice simulations and test sign-offs isolated from live fleet operations and other users.",
   },
 ];
 
-export function LoginView({ onLogin, theme, onToggleTheme }: LoginViewProps) {
+export function LoginView({ onLogin, theme, onToggleTheme, roster = [] }: LoginViewProps) {
   const [selectedPersona, setSelectedPersona] = useState<DemoPersona>(DEMO_PERSONAS[0]);
   const [customName, setCustomName] = useState(DEMO_PERSONAS[0].name);
   const [customBadge, setCustomBadge] = useState(DEMO_PERSONAS[0].badge);
   const [customBase, setCustomBase] = useState(DEMO_PERSONAS[0].base);
+  const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const handleSelectPersona = (p: DemoPersona) => {
     setSelectedPersona(p);
     setCustomName(p.name);
     setCustomBadge(p.badge);
     setCustomBase(p.base);
+    setAuthError(null);
+  };
+
+  const handleGoogleSignIn = async () => {
+    setIsGoogleSigningIn(true);
+    setAuthError(null);
+    try {
+      const fbSession = await signInWithGoogleAndSyncProfile(
+        selectedPersona.role,
+        customBadge.trim() || selectedPersona.badge,
+        customBase.trim() || selectedPersona.base
+      );
+      onLogin({
+        ...fbSession,
+        name: `${fbSession.name} (${fbSession.badge || customBadge})`,
+      });
+    } catch (err: any) {
+      const msg = String(err?.message || "Google sign-in popup was closed or blocked.");
+      setAuthError(
+        msg.includes("popup-closed-by-user")
+          ? "Google sign-in popup was closed before completion. You can retry or use the MRO Role Session button below."
+          : "Google authentication could not complete in this browser frame. Use the MRO Role Session launch button below."
+      );
+    } finally {
+      setIsGoogleSigningIn(false);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const finalName = customName.trim() || selectedPersona.name;
     const finalBadge = customBadge.trim() || selectedPersona.badge;
+    const rosterMatch = roster.find(
+      (r) =>
+        r.uid === selectedPersona.uid ||
+        r.displayName.toLowerCase() === finalName.toLowerCase() ||
+        r.role === selectedPersona.role
+    );
+
+    const defaultFlights =
+      selectedPersona.role === "Supervisor"
+        ? INDIGO_FLIGHTS.map((f) => f.flightNumber)
+        : rosterMatch?.assignedFlightNumbers || ["6E 204", "6E 502", "6E 714", "6E 112"];
+
+    const defaultTails =
+      selectedPersona.role === "Supervisor"
+        ? INDIGO_FLIGHTS.map((f) => f.aircraftTail)
+        : rosterMatch?.assignedTailNumbers || ["VT-IZB", "VT-ITG", "VT-IMR", "VT-IFA"];
+
     onLogin({
+      uid: rosterMatch?.uid || selectedPersona.uid,
       name: `${finalName} (${finalBadge})`,
       role: selectedPersona.role,
       homeBase: customBase.trim() || selectedPersona.base,
       badge: finalBadge,
+      authProvider: "demo",
+      assignedFlightNumbers: defaultFlights,
+      assignedTailNumbers: defaultTails,
     });
   };
 
@@ -186,7 +248,7 @@ export function LoginView({ onLogin, theme, onToggleTheme }: LoginViewProps) {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-3">
               <label className="block text-xs font-mono uppercase tracking-wider text-slate-300 font-semibold">
-                1. Select Station Role Preset (or customize credentials below)
+                1. Select CAR-145 / Part-145 RBAC Role Tier (or customize credentials below)
               </label>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -226,8 +288,11 @@ export function LoginView({ onLogin, theme, onToggleTheme }: LoginViewProps) {
                         </p>
                       </div>
 
-                      <div className="pt-2 border-t border-slate-800/80 space-y-1 text-[11px] font-mono text-slate-400">
-                        <div className="flex items-center gap-1">
+                      <div className="pt-2 border-t border-slate-800/80 space-y-1.5 text-[10px] font-mono">
+                        <div className="text-emerald-300 font-semibold leading-snug">
+                          {persona.accessScopeLabel}
+                        </div>
+                        <div className="flex items-center gap-1 text-slate-400">
                           <MapPin className="w-3 h-3 text-slate-500 shrink-0" />
                           <span className="truncate">{persona.base}</span>
                         </div>
@@ -292,14 +357,39 @@ export function LoginView({ onLogin, theme, onToggleTheme }: LoginViewProps) {
               </div>
             </div>
 
-            {/* Submit Button */}
-            <button
-              type="submit"
-              className="w-full py-3.5 px-6 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-bold font-mono text-sm tracking-wide transition shadow-xl shadow-sky-500/25 flex items-center justify-center gap-2 group cursor-pointer"
-            >
-              <span>Launch IndiGo Flight Operations & Turnaround Board</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </button>
+            {authError && (
+              <div className="p-3 rounded-xl bg-amber-950/60 border border-amber-500/60 text-xs font-mono text-amber-200 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>{authError}</span>
+              </div>
+            )}
+
+            {/* Dual Authentication Buttons: Google Firebase Auth + MRO Role Session */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                id="btn-google-signin"
+                disabled={isGoogleSigningIn}
+                onClick={handleGoogleSignIn}
+                className="w-full py-3.5 px-4 rounded-xl bg-slate-950 hover:bg-slate-900 text-white font-bold font-mono text-xs tracking-wide border border-sky-500/50 hover:border-sky-400 transition shadow-lg flex items-center justify-center gap-2.5 cursor-pointer"
+              >
+                {isGoogleSigningIn ? (
+                  <Loader2 className="w-4 h-4 text-sky-400 animate-spin" />
+                ) : (
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                )}
+                <span>Sign in with Google (Firebase Auth)</span>
+              </button>
+
+              <button
+                type="submit"
+                id="btn-role-login"
+                className="w-full py-3.5 px-4 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-bold font-mono text-xs tracking-wide transition shadow-xl shadow-sky-500/25 flex items-center justify-center gap-2 group cursor-pointer"
+              >
+                <span>Launch as {selectedPersona.role} ({customName.split(" ")[0]})</span>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </button>
+            </div>
           </form>
 
           {/* Trust & Fleet Credibility Markers */}
