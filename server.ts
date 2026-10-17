@@ -165,7 +165,7 @@ Ensure EVERY claim cites the matching document ID like [DEMO-AMM-72-01] or [DEMO
   }
 });
 
-// Endpoint 3: Part Assistant
+// Endpoint 3: Part Assistant with Live Google Search Grounding
 app.post("/api/gemini/part-ask", async (req, res) => {
   try {
     const { partData, question, snippets } = req.body;
@@ -179,23 +179,53 @@ app.post("/api/gemini/part-ask", async (req, res) => {
     }
 
     const systemInstruction =
-      "Answer questions about this engine part using ONLY the provided part data and document snippets. " +
-      "Cite document IDs. If the answer isn't in the provided material, say you don't have it in the library. " +
-      "Never declare an engine or part airworthy or fit to fly. Remind that certifying engineer sign-off is required.";
+      "You are an expert aerospace propulsion copilot for EngineIQ and IndiGo Airlines engineering. " +
+      "Answer questions about this specific aircraft engine component using the provided part specifications, local maintenance manual snippets, and live Google Search grounding. " +
+      "Use Google Search to retrieve live FAA Airworthiness Directives (ADs), EASA Emergency Directives, DGCA regulations, and Pratt & Whitney PW1100G-JM Service Bulletins (SBs). " +
+      "Prioritize OEM bulletins, FAA ADs, and PW1100G service updates. " +
+      "When citing local AMM/FCOM documentation, use square brackets like [DEMO-AMM-72-01]. " +
+      "When citing live regulatory or OEM documents, cite their official reference number (e.g. [FAA AD 2024-001] or [PW1100G-JM-72-0123]). " +
+      "Provide a clear, structured, technical response with key findings, mandatory inspection intervals, and practical engineering guidance. " +
+      "Never declare an engine or part airworthy or fit to fly. Always conclude with: 'Certifying engineer sign-off strictly required.'";
 
-    const promptText = `Part Details: ${JSON.stringify(partData, null, 2)}
-Relevant Document Snippets: ${JSON.stringify(snippets, null, 2)}
-Question: "${question}"`;
+    const promptText = `Component Details (PW1100G-JM Architecture):
+${JSON.stringify(partData, null, 2)}
+
+Local AMM Document Snippets:
+${JSON.stringify(snippets, null, 2)}
+
+Engineer Question:
+"${question}"
+
+Retrieve live, up-to-date FAA/EASA Airworthiness Directives, Pratt & Whitney GTF bulletins, and relevant service alerts via Google Search. Provide a structured, highly factual engineering answer.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3.8-flash",
       contents: promptText,
       config: {
         systemInstruction,
+        tools: [{ googleSearch: {} }],
       },
     });
 
-    res.json({ text: response.text, isOfflineSample: false });
+    const candidate = response.candidates?.[0];
+    const groundingMetadata = candidate?.groundingMetadata;
+    const groundingChunks = groundingMetadata?.groundingChunks || [];
+    const webSearchQueries = groundingMetadata?.webSearchQueries || [];
+
+    const sources = groundingChunks
+      .filter((chunk: any) => chunk.web?.uri)
+      .map((chunk: any) => ({
+        title: chunk.web.title || "Regulatory / OEM Document",
+        url: chunk.web.uri,
+      }));
+
+    res.json({
+      text: response.text,
+      sources,
+      searchQueries: webSearchQueries,
+      isOfflineSample: false,
+    });
   } catch (err: any) {
     console.error("Gemini part-ask error:", err);
     res.status(500).json({

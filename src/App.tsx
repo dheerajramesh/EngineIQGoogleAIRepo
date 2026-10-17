@@ -765,8 +765,8 @@ export default function App() {
               </span>
             )}
 
-            {/* Desktop Segmented Toggle for the Aircraft's Twin Engines */}
-            <div className="hidden lg:inline-flex items-center p-1 bg-slate-900/90 rounded-xl border border-slate-800 shadow-sm gap-1">
+            {/* Segmented Toggle for the Aircraft's Twin Engines */}
+            <div className="inline-flex items-center p-1 bg-slate-900/90 rounded-xl border border-slate-800 shadow-sm gap-1">
               {flightEngines.map((eng) => {
                 const isCurrent = eng.id === currentEngine.id;
                 const isAction = eng.status === "action_required";
@@ -778,7 +778,7 @@ export default function App() {
                     key={eng.id}
                     id={`btn-switch-engine-${eng.id}`}
                     onClick={() => handleSelectEngine(eng.id)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition ${
+                    className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition ${
                       isCurrent
                         ? "bg-sky-500 text-white shadow-md font-extrabold"
                         : "text-slate-400 hover:text-white hover:bg-slate-800/80"
@@ -799,7 +799,7 @@ export default function App() {
                     <span>{eng.enginePosition}</span>
                     <span className="text-[10px] opacity-80 font-normal hidden xl:inline">({wingLabel})</span>
                     <span
-                      className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
+                      className={`px-1.5 py-0.2 rounded text-[10px] font-semibold hidden sm:inline ${
                         isCurrent
                           ? "bg-white/20 text-white"
                           : isAction
@@ -814,30 +814,6 @@ export default function App() {
                   </button>
                 );
               })}
-            </div>
-
-            {/* Dedicated Engine Options Dropdown (Strictly scoped to the aircraft's 2 engines) */}
-            <div className="relative flex items-center gap-1.5">
-              <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider font-bold hidden sm:inline lg:hidden">
-                Engine Options:
-              </span>
-              <div className="relative">
-                <select
-                  id="select-engine-switcher"
-                  aria-label="Engine Options"
-                  title="Engine Options (strictly scoped to the 2 engines of this flight)"
-                  value={currentEngine.id}
-                  onChange={(e) => handleSelectEngine(e.target.value)}
-                  className="bg-slate-900 border border-slate-700 hover:border-sky-500/50 text-xs font-mono font-bold text-white rounded-lg pl-2.5 pr-7 py-1.5 focus:outline-none focus:border-sky-500 cursor-pointer appearance-none"
-                >
-                  {flightEngines.map((eng) => (
-                    <option key={eng.id} value={eng.id}>
-                      {eng.enginePosition} ({eng.enginePosition === "No.1" ? "Left Wing" : "Right Wing"}) — {eng.status === "action_required" ? "⚠ ACTION" : eng.status === "watch" ? "• WATCH" : "OK"} ({eng.cyclesSinceNew.toLocaleString()} cyc)
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-2 pointer-events-none" />
-              </div>
             </div>
 
             {/* Status Pill Badge */}
@@ -1020,26 +996,6 @@ export default function App() {
         <main className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
           {/* Left Side: Interactive 3D Turbofan Engine Canvas (reused seamlessly) */}
           <div className="w-full md:w-1/2 lg:w-3/5 h-64 md:h-full relative border-b md:border-b-0 md:border-r border-slate-800 shrink-0">
-            {activeMode === "explore" && (
-              <div className="absolute top-3 left-3 z-10 flex items-center gap-2">
-                <button
-                  onClick={() => setExploreSubView("specs")}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 text-sky-400 border border-slate-700/80 hover:border-sky-500/60 shadow-xl backdrop-blur-md text-xs font-mono transition"
-                  title="View authentic technical specs and GTF cutaway blueprint"
-                >
-                  <Ruler className="w-3.5 h-3.5" />
-                  <span>Engineering Specs & Cutaway Blueprint</span>
-                </button>
-                <button
-                  onClick={() => setActiveMode("preventive")}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 text-amber-300 border border-slate-700/80 hover:border-amber-500/60 shadow-xl backdrop-blur-md text-xs font-mono transition"
-                  title="View complete preventive maintenance schedule"
-                >
-                  <Wrench className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Preventive Schedule</span>
-                </button>
-              </div>
-            )}
             <EngineCanvas
               selectedPartId={selectedPartId}
               onSelectPart={(partId) => {
@@ -1112,23 +1068,22 @@ export default function App() {
       </main>
     )}
 
-      {/* 4. Bottom Navigation Bar & Component Details Dock */}
+      {/* 4. Bottom Navigation Bar */}
       <footer className="h-14 bg-slate-950/95 border-t border-slate-800 px-3 sm:px-4 flex items-center justify-between z-20 shrink-0 backdrop-blur-md">
-        {/* Navigation Tabs moved to the bottom */}
-        <nav className="flex items-center gap-1 overflow-x-auto no-scrollbar py-1 text-xs font-mono">
+        {/* Navigation Tabs */}
+        <nav className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-1 text-xs font-mono">
           <button
             id="tab-mode-explore-3d"
             onClick={() => {
               setActiveMode("explore");
               setExploreSubView("3d");
-              setPartCardSubTab("specs");
             }}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition whitespace-nowrap ${
-              activeMode === "explore" && exploreSubView === "3d" && partCardSubTab === "specs"
+              activeMode === "explore" && exploreSubView === "3d"
                 ? "bg-sky-500 text-white font-bold shadow"
                 : "text-slate-400 hover:text-white hover:bg-slate-900"
             }`}
-            title="3D Engine Digital Twin & Specs"
+            title="3D Engine Digital Twin"
           >
             <Cpu className="w-3.5 h-3.5 text-sky-300" />
             <span>3D Assembly</span>
@@ -1176,62 +1131,6 @@ export default function App() {
             </span>
           </button>
 
-          <button
-            id="tab-mode-component-history"
-            onClick={() => {
-              setActiveMode("explore");
-              setExploreSubView("3d");
-              setPartCardSubTab("history");
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition whitespace-nowrap ${
-              activeMode === "explore" && exploreSubView === "3d" && partCardSubTab === "history"
-                ? "bg-sky-500 text-white font-bold shadow"
-                : "text-slate-400 hover:text-white hover:bg-slate-900"
-            }`}
-            title="Component-wise maintenance logs, checks, repairs & replacements"
-          >
-            <ClipboardList className="w-3.5 h-3.5 text-sky-300" />
-            <span>Component History</span>
-            <span
-              className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                activeMode === "explore" && exploreSubView === "3d" && partCardSubTab === "history"
-                  ? "bg-white/20 text-white"
-                  : "bg-sky-950 text-sky-400 border border-sky-800"
-              }`}
-            >
-              {componentLogs.filter((l) => l.partId === selectedPartId).length}
-            </span>
-          </button>
-
-          <button
-            id="tab-mode-component-lifetracker"
-            onClick={() => {
-              setActiveMode("explore");
-              setExploreSubView("3d");
-              setPartCardSubTab("lifetracker");
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition whitespace-nowrap ${
-              activeMode === "explore" && exploreSubView === "3d" && partCardSubTab === "lifetracker"
-                ? "bg-sky-500 text-white font-bold shadow"
-                : "text-slate-400 hover:text-white hover:bg-slate-900"
-            }`}
-            title="Component-wise Life-Limited Part (LLP) tracker & cycle retirement criteria"
-          >
-            <Clock className="w-3.5 h-3.5 text-sky-300" />
-            <span>LLP Life Tracker</span>
-            {ENGINE_PARTS[selectedPartId]?.lifeLimitCycles && (
-              <span
-                className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                  activeMode === "explore" && exploreSubView === "3d" && partCardSubTab === "lifetracker"
-                    ? "bg-white/20 text-white"
-                    : "bg-amber-950 text-amber-300 border border-amber-800"
-                }`}
-              >
-                {Math.round(((currentEngine.cyclesSinceNew || 0) / (ENGINE_PARTS[selectedPartId].lifeLimitCycles || 1)) * 100)}%
-              </span>
-            )}
-          </button>
-
           <div className="h-4 w-px bg-slate-800 mx-1 hidden sm:block" />
 
           <button
@@ -1277,26 +1176,10 @@ export default function App() {
           </button>
         </nav>
 
-        {/* Component Quick Selector on the Bottom Right */}
-        <div className="hidden lg:flex items-center gap-2 pl-3 border-l border-slate-800 shrink-0">
-          <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">
-            Subsystem:
-          </span>
-          <div className="relative">
-            <select
-              id="select-bottom-component-switcher"
-              value={selectedPartId}
-              onChange={(e) => setSelectedPartId(e.target.value as PartId)}
-              className="bg-slate-900 border border-slate-700 hover:border-sky-500/50 text-xs font-mono font-semibold text-sky-300 rounded-lg pl-2 pr-6 py-1 focus:outline-none focus:border-sky-500 cursor-pointer transition appearance-none"
-            >
-              {Object.values(ENGINE_PARTS).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.defaultZone})
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-2 pointer-events-none" />
-          </div>
+        {/* Status Indicator on right */}
+        <div className="hidden md:flex items-center gap-2 font-mono text-[11px] text-slate-400">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span>Telemetric Link Active</span>
         </div>
       </footer>
 

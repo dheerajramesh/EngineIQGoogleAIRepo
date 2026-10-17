@@ -1,6 +1,6 @@
 {
-  "summary":  "Architectural plan to integrate real engineering dimensional specifications, OEM baseline standards (Pratt & Whitney PW1100G-JM GTF), and a dedicated technical engineering specs cutaway sheet into EngineIQ.",
-  "updatedAt":  "2026-10-10T08:13:58.681499873Z",
-  "requestFeedback":  true,
-  "userFacing":  true
+  "summary": "Implementation plan for enabling live Google Search Grounding with web citations and OEM airworthiness bulletin cross-referencing in Ask Copilot About This Component.",
+  "updatedAt": "2026-10-17T09:12:02.389464433Z",
+  "requestFeedback": true,
+  "userFacing": true
 }

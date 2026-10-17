@@ -25,7 +25,12 @@ import {
   Gauge,
   Sparkles,
   BookOpen,
+  Radio,
+  Activity,
+  Flame,
 } from "lucide-react";
+import { SensorProvenanceBanner } from "./SensorProvenanceBanner";
+import { getEngineTelemetrySnapshot, getSensorForTask } from "../data/telemetryData";
 
 interface PreventiveMaintenanceViewProps {
   currentEngine: AircraftEngine;
@@ -62,6 +67,11 @@ export const PreventiveMaintenanceView: React.FC<PreventiveMaintenanceViewProps>
 
   const engineCycles = currentEngine.cyclesSinceNew || 5120;
   const engineHours = 14220;
+
+  const telemetrySnapshot = useMemo(
+    () => getEngineTelemetrySnapshot(currentEngine),
+    [currentEngine]
+  );
 
   // Filter tasks
   const filteredTasks = useMemo(() => {
@@ -239,6 +249,12 @@ export const PreventiveMaintenanceView: React.FC<PreventiveMaintenanceViewProps>
         </div>
       )}
 
+      {/* Direct Aircraft Sensor Provenance & Live Telemetry Stream Banner */}
+      <SensorProvenanceBanner
+        currentEngine={currentEngine}
+        telemetrySnapshot={telemetrySnapshot}
+      />
+
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Total Tasks */}
@@ -371,6 +387,12 @@ export const PreventiveMaintenanceView: React.FC<PreventiveMaintenanceViewProps>
               const isDueSoon = cyclesRemaining <= 200 || task.complianceStatus === "due_soon";
               const isOverdue = cyclesRemaining <= 0 || task.complianceStatus === "overdue";
 
+              const sensorResolution = task.attachedSensor
+                ? { attachedSensor: task.attachedSensor, sensorTriggerReason: task.sensorTriggerReason || "" }
+                : getSensorForTask(task.taskCode, task.partId);
+              const taskSensor = sensorResolution.attachedSensor;
+              const sensorTriggerReason = sensorResolution.sensorTriggerReason;
+
               return (
                 <div
                   key={task.id}
@@ -424,6 +446,35 @@ export const PreventiveMaintenanceView: React.FC<PreventiveMaintenanceViewProps>
                         <p className="text-xs text-slate-400 leading-relaxed max-w-4xl">
                           {task.description}
                         </p>
+
+                        {/* Live Sensor Telemetry Badge */}
+                        <div className="mt-2.5 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] font-bold shrink-0">
+                              <span className="relative flex h-1.5 w-1.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                              </span>
+                              <span>ON-ENGINE SENSOR</span>
+                            </span>
+                            <span className="font-semibold text-slate-200 text-xs truncate">
+                              {taskSensor.name}
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-mono hidden lg:inline truncate">
+                              • {taskSensor.physicalMountLocation}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                            <span className="text-[10px] text-slate-400 font-mono uppercase">Live Telemetry:</span>
+                            <span className="px-2 py-0.5 rounded font-mono font-bold text-xs bg-slate-900 border border-slate-700 text-emerald-400">
+                              {taskSensor.currentValue}
+                            </span>
+                            <span className="text-[10px] font-mono text-sky-400 bg-sky-950/80 px-1.5 py-0.5 rounded border border-sky-800 hidden sm:inline">
+                              {taskSensor.busAddress.split("•")[0]?.trim() || "ARINC 429"}
+                            </span>
+                          </div>
+                        </div>
                       </div>
 
                       {/* Right: Quick Action Buttons */}
@@ -513,6 +564,49 @@ export const PreventiveMaintenanceView: React.FC<PreventiveMaintenanceViewProps>
                   {/* Expanded Procedure Drawer */}
                   {isExpanded && (
                     <div className="p-5 bg-slate-950/90 border-t border-slate-800 space-y-4">
+                      {/* Attached Physical Sensor Hardware Specification & Telemetry Provenance */}
+                      <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-bold text-sky-300 uppercase tracking-wider flex items-center gap-2">
+                            <Radio className="w-4 h-4 text-sky-400" />
+                            Direct Aircraft Sensor Provenance & ARINC 429 Channel
+                          </h4>
+                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                            CERTIFIED HARDWARE LINK
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-slate-300 leading-relaxed">
+                          {sensorTriggerReason}
+                        </p>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
+                          <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800">
+                            <span className="text-slate-500 text-[10px] font-mono block">Attached Sensor</span>
+                            <span className="font-semibold text-white text-xs truncate block">{taskSensor.name}</span>
+                            <span className="text-[10px] text-slate-400 font-mono truncate block">{taskSensor.model}</span>
+                          </div>
+
+                          <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800">
+                            <span className="text-slate-500 text-[10px] font-mono block">Mounting Location</span>
+                            <span className="text-slate-200 text-xs truncate block">{taskSensor.physicalMountLocation}</span>
+                            <span className="text-[10px] text-slate-400 font-mono block">{taskSensor.busAddress}</span>
+                          </div>
+
+                          <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800">
+                            <span className="text-slate-500 text-[10px] font-mono block">Current Reading</span>
+                            <span className="font-mono font-bold text-emerald-400 text-xs block">{taskSensor.currentValue}</span>
+                            <span className="text-[10px] text-slate-400 font-mono block">Envelope: {taskSensor.normalRange}</span>
+                          </div>
+
+                          <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800">
+                            <span className="text-slate-500 text-[10px] font-mono block">Calibration Cert</span>
+                            <span className="font-mono text-sky-400 text-xs truncate block">{taskSensor.calibrationCert}</span>
+                            <span className="text-[10px] text-slate-400 block">Cal Date: {taskSensor.calibrationDate}</span>
+                          </div>
+                        </div>
+                      </div>
+
                       {/* Detailed Steps */}
                       <div>
                         <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2 flex items-center gap-2">

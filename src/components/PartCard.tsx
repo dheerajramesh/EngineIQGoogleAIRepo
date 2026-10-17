@@ -7,7 +7,7 @@ import {
   PreventiveMaintenanceTask,
   PMSignOffRecord,
 } from "../types";
-import { askAboutPart } from "../services/gemini";
+import { askAboutPart, GroundedSource } from "../services/gemini";
 import { retrieveRelevantDocuments } from "../logic/retrieval";
 import { ENGINE_PARTS } from "../data/parts";
 import { ComponentHistoryView } from "./ComponentHistoryView";
@@ -35,6 +35,9 @@ import {
   ChevronRight,
   Gauge,
   Cpu,
+  Globe,
+  ExternalLink,
+  Bot,
 } from "lucide-react";
 
 interface PartCardProps {
@@ -80,6 +83,8 @@ export function PartCard({
   const [question, setQuestion] = useState("");
   const [isAsking, setIsAsking] = useState(false);
   const [answer, setAnswer] = useState<string | null>(null);
+  const [sources, setSources] = useState<GroundedSource[]>([]);
+  const [searchQueries, setSearchQueries] = useState<string[]>([]);
   const [isOfflineSample, setIsOfflineSample] = useState(false);
 
   // Compute logs for this component
@@ -105,11 +110,15 @@ export function PartCard({
     if (!query.trim()) return;
     setIsAsking(true);
     setAnswer(null);
+    setSources([]);
+    setSearchQueries([]);
 
     try {
       const snippets = await retrieveRelevantDocuments({ partId: part.id, freeText: query }, 3);
       const res = await askAboutPart(part, query, snippets);
       setAnswer(res.text);
+      setSources(res.sources || []);
+      setSearchQueries(res.searchQueries || []);
       setIsOfflineSample(res.isOfflineSample);
     } catch (err: any) {
       setAnswer("Could not reach service. Please verify network connection.");
@@ -590,25 +599,43 @@ export function PartCard({
         </div>
       )}
 
-      {/* 8. Ask About This Part (Gemini Copilot Box) */}
-      <div className="p-4 rounded-xl bg-gradient-to-b from-slate-900 to-slate-950 border border-sky-500/30 shadow-xl space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs font-semibold text-sky-300">
-            <Sparkles className="w-4 h-4 text-sky-400" />
-            <span>Ask Copilot About This Component</span>
+      {/* 8. Ask About This Part (Gemini Copilot Box with Live Google Search Grounding) */}
+      <div className="p-4 rounded-xl bg-gradient-to-b from-slate-900 to-slate-950 border border-sky-500/40 shadow-xl space-y-3.5">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-lg bg-sky-500/20 text-sky-400">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                <span>Ask Copilot About This Component</span>
+              </h4>
+              <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono mt-0.5">
+                <span className="flex items-center gap-1 text-sky-300">
+                  <Bot className="w-3 h-3 text-sky-400" />
+                  Gemini 3.8 Flash
+                </span>
+                <span>•</span>
+                <span className="flex items-center gap-1 text-emerald-400 font-semibold">
+                  <Globe className="w-3 h-3 text-emerald-400" />
+                  Live Google Search Grounding Active
+                </span>
+              </div>
+            </div>
           </div>
-          <span className="text-[10px] font-mono text-slate-400 bg-slate-800 px-2 py-0.5 rounded">
-            Grounds in Part Data & AMM Library
+          <span className="text-[10px] font-mono text-slate-400 bg-slate-800/90 border border-slate-700/60 px-2 py-0.5 rounded">
+            FAA / EASA Directives & AMM Library
           </span>
         </div>
 
         {/* Quick Question Chips */}
         <div className="flex flex-wrap gap-1.5">
           {[
+            "Latest FAA ADs on powder metal disks",
             "What is the life retirement basis?",
-            "What are the primary failure modes?",
-            "What alloy is used and why?",
-            "How do bird strikes affect this part?",
+            "Primary failure modes & inspection limits",
+            "EASA ultrasonic inspection intervals",
+            "Certified alloy composition & thermal limits",
           ].map((prompt, i) => (
             <button
               key={i}
@@ -616,7 +643,7 @@ export function PartCard({
                 setQuestion(prompt);
                 handleAsk(prompt);
               }}
-              className="text-[11px] text-slate-300 bg-slate-800/80 hover:bg-slate-700/80 hover:text-white px-2.5 py-1 rounded-full border border-slate-700 transition"
+              className="text-[11px] text-slate-300 bg-slate-800/80 hover:bg-slate-700/80 hover:text-white px-2.5 py-1 rounded-lg border border-slate-700 transition cursor-pointer"
             >
               {prompt}
             </button>
@@ -631,33 +658,100 @@ export function PartCard({
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAsk()}
-            placeholder={`Ask a specific question about the ${part.name}...`}
-            className="w-full bg-slate-950/90 border border-slate-700 focus:border-sky-500 rounded-lg pl-3 pr-10 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none transition"
+            placeholder={`Ask a specific question about the ${part.name} (live FAA/EASA bulletins or AMM procedures)...`}
+            className="w-full bg-slate-950/90 border border-slate-700 focus:border-sky-500 rounded-lg pl-3 pr-10 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none transition font-sans"
           />
           <button
             onClick={() => handleAsk()}
             disabled={isAsking || !question.trim()}
-            className="absolute right-1.5 top-1.5 p-1 text-sky-400 hover:text-white disabled:text-slate-600 rounded-md transition"
-            title="Send Query"
+            className="absolute right-1.5 top-1.5 p-1.5 text-sky-400 hover:text-white disabled:text-slate-600 rounded-md transition cursor-pointer"
+            title="Send Query with Live Google Search"
           >
-            {isAsking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            {isAsking ? <Loader2 className="w-4 h-4 animate-spin text-sky-400" /> : <Send className="w-4 h-4" />}
           </button>
         </div>
 
+        {/* Live Grounding Indicator during search */}
+        {isAsking && (
+          <div className="p-3 rounded-lg bg-sky-950/40 border border-sky-800/50 flex items-center justify-between text-xs text-sky-200 animate-pulse font-mono">
+            <div className="flex items-center gap-2">
+              <Globe className="w-4 h-4 text-sky-400 animate-spin" />
+              <span>Grounding query with live Google Search...</span>
+            </div>
+            <span className="text-[10px] text-slate-400">Querying FAA / EASA / P&W Bulletins</span>
+          </div>
+        )}
+
+        {/* Executed Search Queries Bar */}
+        {searchQueries.length > 0 && (
+          <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/90 text-xs">
+            <div className="flex items-center gap-1.5 text-slate-400 font-mono text-[10px] mb-1">
+              <Globe className="w-3 h-3 text-sky-400" />
+              <span>Google Search Grounding Queries Executed by Gemini:</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {searchQueries.map((sq, idx) => (
+                <span
+                  key={idx}
+                  className="px-2 py-0.5 rounded bg-sky-950/60 text-sky-300 border border-sky-800/50 font-mono text-[10px]"
+                >
+                  &quot;{sq}&quot;
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Answer Display */}
         {answer && (
-          <div className="p-3.5 rounded-lg bg-slate-950/80 border border-slate-800 text-xs leading-relaxed text-slate-200 space-y-2">
-            <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/80">
+          <div className="p-4 rounded-xl bg-slate-950/90 border border-slate-800 text-xs leading-relaxed text-slate-200 space-y-3 shadow-inner">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
               <span className="font-semibold text-sky-400 flex items-center gap-1.5">
-                <HelpCircle className="w-3.5 h-3.5" /> Copilot Cited Answer:
+                <HelpCircle className="w-3.5 h-3.5" /> Copilot Grounded Answer:
               </span>
-              {isOfflineSample && (
-                <span className="text-[10px] font-mono uppercase bg-slate-800 text-amber-400 px-1.5 py-0.5 rounded border border-amber-800/50">
-                  offline sample
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                {sources.length > 0 && (
+                  <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/80 border border-emerald-800/60 px-2 py-0.5 rounded flex items-center gap-1">
+                    <Globe className="w-2.5 h-2.5" /> {sources.length} Live Sources
+                  </span>
+                )}
+                {isOfflineSample && (
+                  <span className="text-[10px] font-mono uppercase bg-slate-800 text-amber-400 px-1.5 py-0.5 rounded border border-amber-800/50">
+                    offline sample
+                  </span>
+                )}
+              </div>
             </div>
-            <div className="font-sans leading-relaxed">{renderTextWithCitations(answer)}</div>
+
+            {/* Formatted Text with local citation badges */}
+            <div className="font-sans leading-relaxed text-slate-200 whitespace-pre-line">
+              {renderTextWithCitations(answer)}
+            </div>
+
+            {/* Grounded Web Sources (Clickable Badges) */}
+            {sources.length > 0 && (
+              <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
+                <span className="text-[10px] font-mono uppercase text-slate-400 tracking-wider font-semibold block">
+                  Grounded Regulatory & Technical Sources:
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {sources.map((src, i) => (
+                    <a
+                      key={i}
+                      href={src.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700/80 hover:border-sky-500/60 text-sky-300 hover:text-white transition group cursor-pointer text-[11px]"
+                      title={src.title}
+                    >
+                      <Globe className="w-3 h-3 text-emerald-400 shrink-0" />
+                      <span className="font-medium max-w-[260px] truncate">{src.title}</span>
+                      <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-sky-300 shrink-0" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

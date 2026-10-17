@@ -1,6 +1,7 @@
 import { PreventiveMaintenanceTask } from "../types";
+import { getSensorForTask } from "./telemetryData";
 
-export const INITIAL_PREVENTIVE_TASKS: PreventiveMaintenanceTask[] = [
+const RAW_PREVENTIVE_TASKS: PreventiveMaintenanceTask[] = [
   {
     id: "PM-BSI-HPT-01",
     title: "High-Pressure Turbine Stage 1 & 2 Blade Borescope Inspection (BSI)",
@@ -524,3 +525,12 @@ export const INITIAL_PREVENTIVE_TASKS: PreventiveMaintenanceTask[] = [
     ]
   }
 ];
+
+export const INITIAL_PREVENTIVE_TASKS: PreventiveMaintenanceTask[] = RAW_PREVENTIVE_TASKS.map((task) => {
+  const sensorData = getSensorForTask(task.taskCode, task.partId);
+  return {
+    ...task,
+    attachedSensor: task.attachedSensor || sensorData.attachedSensor,
+    sensorTriggerReason: task.sensorTriggerReason || sensorData.sensorTriggerReason,
+  };
+});

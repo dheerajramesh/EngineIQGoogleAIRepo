@@ -19,7 +19,11 @@ import {
   UserCheck,
   PlusCircle,
   ExternalLink,
+  Radio,
+  Activity,
+  Cpu,
 } from "lucide-react";
+import { getSensorForTask } from "../data/telemetryData";
 
 interface ComponentPreventiveTabProps {
   part: EnginePartData;
@@ -122,6 +126,34 @@ export const ComponentPreventiveTab: React.FC<ComponentPreventiveTabProps> = ({
         )}
       </div>
 
+      {/* On-Engine Hardware Sensor Live Provenance Card */}
+      {(() => {
+        const primarySensor = getSensorForTask("", part.id).attachedSensor;
+        return (
+          <div className="p-3 rounded-xl bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950/30 border border-slate-800 flex items-center justify-between gap-3 text-xs shadow-sm">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] font-bold shrink-0">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                </span>
+                <span>ATTACHED HARDWARE SENSOR</span>
+              </div>
+              <div className="truncate">
+                <span className="font-semibold text-slate-200 block truncate text-xs">{primarySensor.name}</span>
+                <span className="text-[10px] text-slate-400 font-mono truncate block">
+                  {primarySensor.physicalMountLocation} • {primarySensor.busAddress.split("•")[0]?.trim()}
+                </span>
+              </div>
+            </div>
+            <div className="text-right shrink-0">
+              <span className="text-[10px] text-slate-400 font-mono block">Realtime Feed</span>
+              <span className="text-xs font-mono font-bold text-emerald-400">{primarySensor.currentValue}</span>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Task List */}
       {componentTasks.length === 0 ? (
         <div className="text-center py-8 px-4 rounded-xl border border-dashed border-slate-800 bg-slate-950/40">
@@ -190,6 +222,22 @@ export const ComponentPreventiveTab: React.FC<ComponentPreventiveTabProps> = ({
                       <p className="text-[11px] text-slate-400 line-clamp-2">
                         {task.description}
                       </p>
+
+                      {/* On-Engine Sensor Badge */}
+                      {(() => {
+                        const cardSensor = task.attachedSensor || getSensorForTask(task.taskCode, task.partId).attachedSensor;
+                        return (
+                          <div className="mt-2 p-1.5 rounded-lg bg-slate-950/80 border border-slate-800 flex items-center justify-between text-[11px]">
+                            <div className="flex items-center gap-1.5 min-w-0 truncate">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+                              <span className="text-slate-300 font-medium truncate">{cardSensor.name}</span>
+                            </div>
+                            <div className="text-right shrink-0 font-mono font-bold text-emerald-400 text-[10px] pl-2">
+                              {cardSensor.currentValue}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     <button
@@ -255,6 +303,33 @@ export const ComponentPreventiveTab: React.FC<ComponentPreventiveTabProps> = ({
                 {/* Expanded Procedure & Sign-off History */}
                 {isExpanded && (
                   <div className="p-3 bg-slate-950/80 border-t border-slate-800 space-y-3">
+                    {/* Attached Sensor Provenance Box */}
+                    {(() => {
+                      const sensorRes = task.attachedSensor
+                        ? { attachedSensor: task.attachedSensor, sensorTriggerReason: task.sensorTriggerReason || "" }
+                        : getSensorForTask(task.taskCode, task.partId);
+                      const s = sensorRes.attachedSensor;
+                      return (
+                        <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 space-y-1.5 text-[11px]">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-sky-400 flex items-center gap-1">
+                              <Radio className="w-3 h-3" />
+                              Attached Hardware Sensor: {s.name}
+                            </span>
+                            <span className="font-mono text-emerald-400 text-[10px] font-bold">
+                              {s.currentValue}
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-slate-400">
+                            Mount: {s.physicalMountLocation} • Bus: {s.busAddress}
+                          </div>
+                          <div className="text-[10px] text-slate-400">
+                            Cal Cert: <span className="font-mono text-slate-300">{s.calibrationCert}</span> ({s.calibrationDate})
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     <div>
                       <h6 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                         <FileText className="w-3 h-3 text-sky-400" />

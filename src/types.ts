@@ -331,4 +331,85 @@ export interface PreventiveMaintenanceTask {
   estimatedHours: number;
   requiredCertification: string;
   signOffHistory: PMSignOffRecord[];
+  attachedSensor?: AttachedSensorTelemetry;
+  sensorTriggerReason?: string;
+}
+
+export type SensorMetricType =
+  | "vibration"
+  | "egt"
+  | "oil_pressure"
+  | "oil_temp"
+  | "chip_detector"
+  | "pressure_delta"
+  | "fuel_flow";
+
+export interface AttachedSensorTelemetry {
+  sensorId: string;
+  name: string;
+  model: string;
+  serialNumber: string;
+  busAddress: string; // e.g. "ARINC 429 Word 341 (Channel A)"
+  physicalMountLocation: string; // e.g. "Bearing #1 Housing, Forward Fan Frame"
+  metricType: SensorMetricType;
+  currentValue: number | string;
+  unit: string;
+  normalRange: string;
+  status: "nominal" | "advisory" | "alert";
+  calibrationDate: string;
+  calibrationCert: string;
+  sampleRateHz: number;
+  summaryExplanation?: string;
+}
+
+export interface EngineLiveTelemetrySnapshot {
+  engineId: string;
+  tailNumber: string;
+  enginePosition: "No.1" | "No.2";
+  aircraftModel: string;
+  fadecChannel: string;
+  arincBus: string;
+  timestamp: string;
+  vibrationN1: {
+    value: number;
+    unit: string;
+    status: "nominal" | "advisory" | "alert";
+    sensor: string;
+    limit: number;
+  };
+  vibrationN2: {
+    value: number;
+    unit: string;
+    status: "nominal" | "advisory" | "alert";
+    sensor: string;
+    limit: number;
+  };
+  egt: {
+    value: number;
+    unit: string;
+    status: "nominal" | "advisory" | "alert";
+    margin: number;
+    redline: number;
+    sensor: string;
+  };
+  oilPressure: {
+    value: number;
+    unit: string;
+    status: "nominal" | "advisory" | "alert";
+    normalMin: number;
+    normalMax: number;
+    sensor: string;
+  };
+  oilTemp: {
+    value: number;
+    unit: string;
+    status: "nominal" | "advisory" | "alert";
+    sensor: string;
+  };
+  chipDetector: {
+    status: "clear" | "warning";
+    debrisParticlesCount: number;
+    sensor: string;
+  };
+  sensorList: AttachedSensorTelemetry[];
 }

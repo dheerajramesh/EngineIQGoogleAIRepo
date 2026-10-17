@@ -1,102 +1,114 @@
-# Real Engineering Specifications & Cutaway Integration (PW1100G-JM Baseline)
+# Live Google Search Grounding for Component Copilot
 
-Incorporate authentic engineering dimensions ($\pm1\text{--}2\,\text{cm}$ aerospace accuracy), certified alloy metallurgy, and a dedicated Engineering Specs & Technical Cutaway Sheet into EngineIQ based on the Pratt & Whitney PW1100G-JM Geared Turbofan (A320neo) architecture.
+Enable real-time Google Search Grounding powered by Gemini 3.8 Flash in "Ask Copilot About This Component", delivering live airworthiness directives (FAA/EASA/DGCA), OEM service bulletins, and propulsion engineering updates with clickable external web source badges alongside local AMM citations.
 
 ## User Review & Critical Decisions
 
 > [!IMPORTANT]
-> The following architectural decisions were confirmed based on your input:
-> - **Turbofan Engineering Baseline**: Pratt & Whitney PW1100G-JM (1-G-3-8-2-3 architecture powering the Airbus A320neo family).
-> - **Display Location**: Dedicated **Engineering Specs & Cutaway** interactive sheet embedded directly into the **Explore Mode** workspace, with a quick-toggle between the interactive 3D model and the structural dimensional blueprint.
-> - **Granularity**: Authentic metric dimensions ($\text{cm}/\text{mm}$), stage counts, and certified aerospace alloys (Ti-6Al-4V, Inconel 718, single-crystal CMSX-4/PWA 1484, Hastelloy-X) across all 10 engine subsystems.
+> The following user preferences were confirmed during Phase 1 clarification:
+> - **Query Grounding Mode**: Auto-ground every component query with live Google Search so engineers always receive real-time intelligence instead of static pre-canned answers.
+> - **Source Attribution**: Render clickable external web source badges displaying the document title, domain/authority tag, and direct live URL.
+> - **Priority Knowledge Domains**: Prioritize Pratt & Whitney PW1100G-JM OEM bulletins, FAA Airworthiness Directives (ADs), EASA emergency alerts, and DGCA operational mandates.
+> - **Hybrid Synthesis**: Seamlessly fuse local Aircraft Maintenance Manual (AMM/FCOM) citations (`[DEMO-AMM-...]`) with live web citations (`[FAA-AD-...]` / `[PW-SB-...]`).
 
 ---
 
 ## 1. Overview & Core Concept
 
-EngineIQ will transition from illustrative dummy component dimensions to **verifiable aerospace engineering specifications** grounded in published FAA/EASA Type Certificate Data Sheets (TCDS E00087EN) and OEM technical publications for the PW1100G-JM:
-- **Macro Envelope**: $81\,\text{in}$ ($205.7\,\text{cm}$) fan diameter, $3.401\,\text{m}$ overall length, $12.5:1$ bypass ratio, $40:1\text{--}50:1$ overall pressure ratio.
-- **Component Subsystems**: Exact stage counts ($1\text{ Fan} \rightarrow \text{FDGS } 3.06:1 \rightarrow 3\text{ LPC} \rightarrow 8\text{ HPC} \rightarrow \text{TALON X Combustor} \rightarrow 2\text{ HPT} \rightarrow 3\text{ LPT}$), physical lengths, diameters, and operating thermal envelopes.
-- **Interactive Cutaway Blueprint**: A technical engineering cutaway drawing and cross-section schematics with interactive hot zones linking directly to component telemetry cards.
+Currently, the "Ask Copilot About This Component" drawer in `PartCard.tsx` calls `/api/gemini/part-ask`, which grounds answers solely on static mock document snippets from `retrieval.ts`. If an engineer asks about current fleet issues—such as the recent PW1100G powdered metal high-pressure compressor (HPC) stage 1-2 disk recall, EASA ultrasonic inspection bulletins, or DGCA hot-and-harsh environmental mandates—the local database cannot provide live answers.
+
+This enhancement connects the Component Copilot to the Gemini 3.8 Flash model configured with the `{ googleSearch: {} }` tool. The response synthesizes both the physical engineering specifications of the selected component (metallurgy, dimensions, station location, lifecycle thresholds) and real-time regulatory bulletins retrieved via live Google Search, returning grounded text, search queries executed, and clickable source links.
 
 ---
 
 ## 2. User Experience & Visual Design
 
 ### Key User Flows
-1. **Explore Mode Switcher**:
-   - In Explore Mode, a sleek secondary segmented view controller allows technicians to toggle between:
-     - **Interactive 3D Engine Assembly** (current interactive WebGL Three.js view).
-     - **Engineering Specs & Cutaway Blueprint** (high-density technical blueprint and dimensional breakdown).
-2. **Interactive Component Dimensional Cards**:
-   - Every Part Card in Explore Mode now features an **Authentic Engineering Dimensions & Metallurgy** section with tabular figures:
-     - Component axial length ($\text{cm}$)
-     - Outer and bore diameter ($\text{cm}$)
-     - Certified aerospace alloy composition (e.g. *Titanium Ti-6Al-4V Grade 5*, *Forged Nickel Superalloy IN718*, *Single-Crystal PWA 1484 / CMSX-4 with 7YSZ TBC*)
-     - Operating thermal range ($^{\circ}\text{C}$) and rotational velocity ($\text{RPM}$)
-3. **Interactive Cross-Section Schematic**:
-   - Technicians can hover or click directly on stages in the cutaway diagram (Fan, Gearbox, Booster, Core Spool, HPT, LPT, Nozzle) to auto-select that part in 3D and open its certified limits.
 
-### Visual Styling & Typographic Rigor
-- **Theme**: Deep aerospace navy/graphite (`#070B14`, `#090D16`, `#111827`) with precision laser cyan (`#38BDF8`) and technical amber (`#F59E0B`) highlights.
-- **Tabular Precision**: `font-mono tabular-nums` for all metric and imperial dimensions, ratios, and operating tolerances.
-- **Zero-Pill Compliance**: Clean unboxed technical labels with dot and slash separators (`·`, `/`) following the frontend design constitution.
+1. **Subsystem Selection**: The engineer selects any engine component (e.g. *HPC Rotor*, *Combustor Liner*, *Fan Blades*, or *High Pressure Turbine*).
+2. **Copilot Query Submission**: The engineer clicks a quick-prompt chip (e.g., *"Latest FAA ADs on powder metal HPC disks"*) or types a custom question into the input field.
+3. **Live Grounding Indicator**: A subtle, non-disruptive radar pulse indicator displays:  
+   `"Grounding with Google Search • Querying FAA / EASA / P&W Bulletins..."`
+4. **Live Synthesized Response**: The copilot renders a comprehensive answer combining:
+   - Specific component physical context (dimensions, alloys, tolerances).
+   - Real-time regulatory mandates and FAA/EASA inspection thresholds.
+   - Clickable local AMM/FCOM badges (`[DEMO-AMM-72-01]`).
+   - Clickable external web source badges (`[FAA AD 2024-001]`, `[EASA Safety Bulletin]`, `[P&W Service Digest]`) with live outbound URLs.
+5. **Executed Search Queries**: An expandable drawer displays the exact queries Gemini executed against Google Search for transparency and verification.
+
+### Visual Styling & Anti-Slop Layout
+- **No Pill Clutter**: External references are presented as clean, functional source badges with subtle domain text, external link icons, and clear typography (`font-mono text-xs`).
+- **Tabular & Monospace Integrity**: All AD numbers, dates, cycle limits, and tolerances maintain strict tabular numeral alignment (`font-mono tabular-nums`).
+- **Dark Aerospace Theme**: Seamless integration with the existing Slate/Navy cockpit palette (`bg-slate-900/90`, `border-slate-800`, `text-sky-300` accents).
 
 ---
 
 ## 3. Key Product Decisions & Trade-Offs
 
-### Decision 1: PW1100G-JM 1-G-3-8-2-3 Architectural Benchmark
-- **Chosen Approach**: Standardize on the PW1100G-JM Geared Turbofan (GTF).
-- **Why**: The GTF represents state-of-the-art modern commercial propulsion. Its reduction gearbox separates the LP spool speed from the fan, providing distinctive, educational maintenance scenarios (vibration, oil leak, TBC coating loss) that mirror EngineIQ's rules engine.
-- **Alternatives Considered**: Generic hybrid engine (lacks authentic manufacturer credibility with judges) or CFM LEAP-1A (direct drive, lacks the planetary gearbox module).
+- **Decision 1: Server-Side Google Search Integration**
+  - *Chosen Approach*: Execute `@google/genai` with `tools: [{ googleSearch: {} }]` inside the `/api/gemini/part-ask` server route.
+  - *Why*: Conforms strictly to security guidelines (API keys never exposed to client), leverages Gemini 3.8 Flash's native search grounding engine, and extracts `groundingMetadata.groundingChunks` and `webSearchQueries` server-side.
+  - *Alternatives Considered*: Client-side search scraping (rejected due to CORS, security, and fragility).
 
-### Decision 2: High-Fidelity Vector Technical Cutaway + Asset Fallback
-- **Chosen Approach**: Render a crisp, responsive SVG vector technical cutaway with precise architectural stations (STA 0 to STA 800) alongside generated studio GTF reference photography.
-- **Why**: SVGs scale smoothly on any screen, allow interactive hit-testing on engine stations without pixelation, and eliminate broken-link risks in sandbox evaluation environments.
+- **Decision 2: Dual Citation Architecture (Local AMM + Live Web)**
+  - *Chosen Approach*: The prompt supplies local AMM chapter guidelines while the search tool queries public regulatory databases. The client renderer supports both local modal opening (`onOpenCitation(cleanId)`) and external tab opening (`target="_blank"`).
+  - *Why*: Allows certifying engineers to cross-reference their physical maintenance manuals with active worldwide airworthiness directives.
+
+- **Decision 3: Graceful Offline & Fallback Resilience**
+  - *Chosen Approach*: When API keys are unavailable or the network times out, fall back to high-fidelity pre-cached PW1100G bulletin responses with simulated search sources rather than throwing an unhandled error.
+  - *Why*: Guarantees zero downtime or blank error states in preview and evaluation environments.
 
 ---
 
 ## 4. Technical Architecture & Data Strategy
 
+### System Component Diagram
+
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          EngineIQ Workspace                                 │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  Top Navigation (Brand · Role · Back to Fleet · Log out)                    │
-│  Compliance Banner (ILLUSTRATIVE DATA. NOT FOR OPERATIONAL USE...)          │
-├──────────────────────────────────────┬──────────────────────────────────────┤
-│  Left Stage: View Mode Toggle        │  Right Stage: Context Panel          │
-│  [3D Procedural Engine | Blueprint]  │                                      │
-│                                      │  1. Part Card (Alloys & Dimensions)  │
-│  • Mode A: Three.js Interactive GTF  │  2. Engineering Specs Sheet:         │
-│  • Mode B: Technical Cutaway Drawing │     - PW1100G-JM Macro Envelope      │
-│    with Interactive Station Probes   │     - 1-G-3-8-2-3 Architecture       │
-│                                      │     - Subsystem Dimension Matrix     │
-│                                      │  3. Gemini Cited Assistant           │
-└──────────────────────────────────────┴──────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│                        ENGINEIQ FRONTEND (React)                       │
+│                                                                        │
+│   PartCard.tsx                                                         │
+│   ┌────────────────────────────────────────────────────────────────┐   │
+│   │ "Ask Copilot About This Component"                             │   │
+│   │  - Question Input & Quick Aerospace Prompts                    │   │
+│   │  - Live Google Search Badge Indicator                          │   │
+│   │  - Synthesized Answer with Local AMM & Live Web Citations      │   │
+│   │  - Clickable Web Source Chips (Title, Hostname, Outbound Link) │   │
+│   │  - Executed Search Queries Transparency Bar                    │   │
+│   └───────────────────────────────┬────────────────────────────────┘   │
+└───────────────────────────────────┼────────────────────────────────────┘
+                                    │ POST /api/gemini/part-ask
+                                    │ { partData, question, snippets }
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                        EXPRESS SERVER (server.ts)                      │
+│                                                                        │
+│   /api/gemini/part-ask                                                 │
+│   ┌────────────────────────────────────────────────────────────────┐   │
+│   │ GoogleGenAI SDK (model: gemini-3.8-flash)                      │   │
+│   │  - tools: [{ googleSearch: {} }]                               │   │
+│   │  - Injects component metallurgy, station, limits & AMM context │   │
+│   │  - Extracts candidate text + groundingMetadata                 │   │
+│   │  - Returns { text, sources, searchQueries, isOfflineSample }   │   │
+│   └────────────────────────────────────────────────────────────────┘   │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Data Extensions in `src/data/parts.ts` & `src/types.ts`
-Add structured engineering fields to each of the 10 components:
-```ts
-export interface ComponentDimensions {
-  axialLengthCm: number;        // e.g. 206 cm for fan case, 42 cm for booster
-  outerDiameterCm: number;      // e.g. 205.7 cm for fan blades, 62 cm for LPC
-  innerBoreDiameterCm?: number; // e.g. 48 cm for fan hub
-  weightKg?: number;            // approximate dry module weight
-  stageCount?: number;          // e.g. 1 fan, 3 LPC, 8 HPC, 2 HPT, 3 LPT
-  gearRatio?: string;           // "3.06:1" for FDGS
-  primaryAlloy: string;         // e.g. "Ti-6Al-4V Grade 5 (Titanium Alloy)"
-  coatingSpec?: string;         // e.g. "7YSZ Electron-Beam PVD Thermal Barrier Coating"
-  stationRange: string;         // e.g. "STA 100 - STA 210"
-}
-```
+### Data Structures & Flow
 
-### Component Structure
-1. `src/components/EngineeringSpecsSheet.tsx`:
-   - Interactive macro specifications tab (Thrust 24k–33k lbf, BPR 12.5:1, OPR 45:1, Dry weight 2,858 kg).
-   - Component dimensions matrix table with tabular figures and alloy composition.
-   - Interactive SVG structural cross-section with hoverable engine modules.
-2. `src/components/PartCard.tsx` enhancements:
-   - Dedicated "Engineering Dimensions & Metallurgy" section displaying exact length, diameter, stages, and certified alloys.
+1. **Client Service (`src/services/gemini.ts`)**:
+   - Update `GeminiPartAskResponse` interface to include `sources: GroundedSource[]` and `searchQueries: string[]`.
+   - Update `askAboutPart()` to parse and propagate sources and executed search queries.
+   - Update `getOfflinePartAskFallback()` with realistic airworthiness sources for common parts (HPC, HPT, Combustor, Fan Blades).
+
+2. **Backend Route (`server.ts`)**:
+   - Update `/api/gemini/part-ask` to add `tools: [{ googleSearch: {} }]` to the Gemini call config.
+   - Extract `groundingChunks` and `webSearchQueries` from `response.candidates[0].groundingMetadata`.
+   - Map grounding chunks into standard `{ title, url }` source objects.
+
+3. **UI Rendering (`src/components/PartCard.tsx`)**:
+   - Add state for `sources: GroundedSource[]` and `searchQueries: string[]`.
+   - Render live search status banner indicating real-time Google search grounding.
+   - Render clickable external source badges at the bottom of the answer.
+   - Render the executed Google search queries badge list.
