@@ -1,71 +1,85 @@
-# End-to-End MRO Audit Remediation Plan
+# End-to-End MRO Line Engineer Interactive Workflow Plan
 
-Resolve all 10 data integrity, airworthiness logic, 3D spatial label collision, and closed-loop state synchronization bugs uncovered during the full-application audit.
+Transform the application into a complete, closed-loop MRO Line Maintenance workstation where engineers actively enter physical measurements, verify AMM tolerance bands in real time, record post-rectification gauge readings before clearing 3D Red/Amber warning lights, and sign a formal Certificate of Release to Service (CRS) to dispatch the aircraft.
 
-## User Review & Confirmed Scope
+## User Review & Confirmed Decisions
 
 > [!IMPORTANT]
-> All four remediation tracks have been approved for implementation:
-> 1. **Data & Identity Integrity**: Synchronize tail numbers between flights and engines, align pilot Crew Reports with actual open cases, map real case findings into the Defect Banner, compute realistic Flight Hours per engine, and fix the illegal >15,000 CSN LLP exceedance on healthy engines.
-> 2. **Closed-Loop Defect Sign-Off (No More Zombie Red Lights)**: Signing off a component rectification updates `partStatuses`, removes the resolved finding/case from `openCaseIds`, and transitions the engine's status badge to `NORMAL` when all defects are cleared.
-> 3. **3D Label Anti-Collision Layout**: Stagger 3D `<Html>` labels alternating above and below the core centerline with leader lines so they never stack into an unreadable pile in assembled view.
-> 4. **Engine-Scoped Component History & Zero `window.alert()`**: Scope maintenance history logs and cycle stamps to the selected engine's actual CSN, and replace native browser `alert()` calls with inline validation banners.
+> All four interactive engineering workflows and strict sign-off input requirements have been confirmed:
+> - **Confirmed Decision 1 — Mandatory Rectification Worksheet Before Clearing Red/Amber Lights**: Clearing an active component defect now requires completing an interactive form with **Action Type**, **Post-Repair Measurement** (validated against AMM serviceable limits), **Work Order #**, and **Certifying AME License ID**.
+> - **Confirmed Decision 2 — Live Component Measurement / Micrometer Input on 3D Part Cards**: Every component in the 3D Digital Twin includes an interactive gauge input panel to test live field measurements against AMM limit bands and dynamically trigger Normal (Green), Inspect (Amber), or Action Required (Red) status.
+> - **Confirmed Decision 3 — Final Flight CRS Dispatch Release Form**: Once both engines on an aircraft are in serviceable status (`Normal` or approved `Watch` under MEL), the Flight Status screen unlocks an interactive **Certificate of Release to Service (CRS)** sign-off panel to formally release the flight for departure.
+> - **Confirmed Decision 4 — Auto-Load Active Flight Crew Tech Log into Incident Intake**: The Incident Intake workspace links directly to the active flight's Captain Logbook report and open case telemetry so engineers never face a blank intake screen.
 
 ---
 
-## 1. Data & Identity Synchronization (`flights.ts`, `fleet.ts`, `PartCard.tsx`)
+## 1. Overview & Core Concept
 
-- **Unified Aircraft Tail Numbers**:
-  - Update `INDIGO_FLIGHTS` in `src/data/flights.ts` and `INITIAL_FLEET_ENGINES` / `INITIAL_FLEET_CASES` in `src/data/fleet.ts` so every flight's `aircraftTail` and its twin engines' `tailNumber` match 100% (e.g., `VT-IZB` (`VT-DEM2`), `VT-ITG` (`VT-DEM1`), `VT-IFA` (`VT-DEM3`), `VT-IMR` (`VT-DEM4`), `VT-IJC` (`VT-DEM6`), `VT-IKL` (`VT-DEM5`), `VT-IOD` (`VT-DEM7`), `VT-IVN` (`VT-DEM8`)).
-  - Pass `activeFlight?.aircraftTail || currentEngine.tailNumber` consistently to all child views.
-- **Pilot Crew Reports Aligned 1-to-1 with Open Cases**:
-  - **Flight 6E 2134 (`VT-DEM2-ENG1`)**: Flock bird ingestion on takeoff — Fan Blade #8 12.0 mm through-crack, Fan Case 4.0 mm containment dent, 4.8 N1 vibration (`CASE-2026-S2`).
-  - **Flight 6E 548 (`VT-DEM1-ENG2`)**: Climb bird strike at 1,500 ft — Fan Blade #14 1.9 mm leading-edge nick & 2.2 N1 vibration (`CASE-2026-S1`).
-  - **Flight 6E 902 (`VT-DEM4-ENG1`)**: Transit walkaround oil seepage — No.1 Engine Accessory Gearbox drain mast leaking at 18 drops/min (`CASE-2026-S4`).
-  - **Flight 6E 174 (`VT-DEM6-ENG2`)**: High EGT trend post-landing — Stage 1 HPT borescope confirmed 42% thermal barrier coating spallation (`CASE-2026-S6`).
-  - **Flight 6E 831 (`VT-DEM5-ENG2`)**: ACARS step-climb vibration advisory — 2.9 N1 units on No.2 Engine core spool (`CASE-2026-S3`).
-- **Fix LLP Exceedance on `VT-DEM6-ENG1`**:
-  - Adjust `VT-DEM6-ENG1` cycles to `13,600 CSN` and `VT-DEM6-ENG2` to `13,950 CSN` so healthy/watch engines do not illegally exceed the 15,000-cycle HPT rotor disk mandatory retirement limit.
-- **Dynamic Case Findings in `PartCard` Defect Banner**:
-  - Pass the current engine's active `openCases` into `PartCard`. When an open case has a finding for the selected component, overlay the exact measured finding, zone, limit band, and source document from that active case onto the Defect & Fix Required Alert Banner.
-- **Realistic Per-Engine Flight Hours (`engineHours`)**:
-  - Replace hardcoded `14220` FH with `Math.round(currentEngine.cyclesSinceNew * 1.85)` across `App.tsx` and `PartCard.tsx`.
+- **What It Does**: Closes every functional gap in the MRO engineer's journey—from login and flight selection to on-wing micrometer measurement entry, AMM limit verification, component defect rectification with post-repair gauge validation, and final aircraft CRS dispatch release.
+- **Target Audience / Persona**: Line Maintenance Engineers (DGCA Part-66 / FAA A&P), Powerplant CAMO Supervisors, and MRO Technical Evaluators.
+- **Key Value**: Replaces passive, single-click status toggles with authentic aviation MRO input workflows where every state transition is backed by quantitative engineer inputs, deterministic AMM limit checks, and traceable work orders.
 
 ---
 
-## 2. Closed-Loop Defect Sign-Off (`src/App.tsx`, `src/components/PartCard.tsx`)
+## 2. User Experience & Visual Design
 
-- **Full State Resolution on Sign-Off**:
-  - Enhance `handleUpdatePartStatus(partId, status)` in `src/App.tsx`:
-    - When `status === "default"` (rectified), update `partStatuses` for `partId`.
-    - Check if any other component on `currentEngine` remains `"affected"` or `"inspect"`.
-    - Update `engines` state (and persist to `localStorage`):
-      - If no `"affected"` or `"inspect"` parts remain, set `engine.status = "normal"` and clear resolved `openCaseIds`.
-      - If only `"inspect"` parts remain, downgrade `engine.status` from `"action_required"` to `"watch"`.
-    - Also dynamically compute flight `overallStatus` and `activeAlertCount` in `FleetDashboard` and `FlightStatusView` from the live `engines` state so the Flight Dashboard immediately reflects the green `NORMAL` status after rectification!
-
----
-
-## 3. 3D Component Label Anti-Collision (`src/components/EngineCanvas.tsx`)
-
-- **Staggered 3D Label Anchors `[x, y, z]`**:
-  - Instead of placing all 10 `<Html>` labels at `[0, labelHeight, 0]` along the top ridge where they collide in assembled view, assign each part a distinct `[labelX, labelY, labelZ]` offset alternating top-left, top-right, bottom-left, and bottom-right with a subtle vertical stem line:
-    - `fan_case`: `[-0.8, 2.05, 0.2]`
-    - `fan_blades`: `[0.7, 1.65, 0.35]`
-    - `fan_drive_gear`: `[-0.85, -1.15, 0]`
-    - `lpc`: `[0.75, 1.15, 0]`
-    - `hpc`: `[-0.75, 1.35, 0]`
-    - `combustor`: `[0.8, -1.05, 0]`
-    - `hpt`: `[0.75, 1.25, 0]`
-    - `lpt`: `[-0.75, 1.05, 0]`
-    - `exhaust`: `[0.65, 0.95, -0.2]`
-    - `oil_system`: `[0.95, -1.35, 0.2]`
+- **Key User Flows**:
+  1. **Engineer Sign-In & Credentials**: Engineer selects their station role or customizes their Name, AME License Badge ID, and Line Station Base on the login screen; these credentials automatically pre-populate downstream work orders and CRS forms.
+  2. **3D Component Live Gauge & Micrometer Input**: On any 3D subsystem card, the engineer opens **"Enter Field Measurement / Gauge Check"**, selects the inspection parameter (e.g., *Leading Edge Nick Depth (mm)*, *Crack Length (mm)*, *Oil Seepage (drops/min)*, *TBC Coating Loss (%)*, *N1 Vibration*), enters a numeric reading, and sees the live AMM Limit Band calculation (`Level 0–4`). Submitting the reading immediately updates the 3D component's lighting (Neutral Metallic, Amber Inspect, or Red Alert) and logs the finding.
+  3. **Interactive Defect Rectification & Post-Repair Sign-Off**: When a component is in Red (`ACTION REQUIRED`) or Amber (`INSPECT`) status, clicking **"Complete Rectification & Sign Off"** opens the **AMM Rectification Worksheet**:
+     - **Rectification Action Performed** (*On-Wing Cold Blend Repair*, *QEC / Line Replaceable Unit Swap*, *B-Nut Re-Torque & Seal Replacement*, or *MEL Category C Deferred Dispatch*).
+     - **Post-Rectification Measured Value** (e.g., `0.0 mm` residual crack, `1.1 mm` blended contour, `2 drops/min` seepage) + **Replacement S/N & Form 1 / 8130-3 Release Tag** (when replacing hardware).
+     - **Work Order #** and **Certifying AME License ID** (mandatory validation before clearing the red light).
+  4. **Incident Intake Crew Report Pre-Loader**: Opening **Incident Intake** displays an active banner with the current flight's Captain Tech Logbook report and a 1-click **"Load Flight Crew Report & Telemetry"** action that populates the narrative and calibrated numeric fields automatically.
+  5. **Aircraft Certificate of Release to Service (CRS) Dispatch Panel**: On the Flight Status screen, engineers can enter pre-departure checks (**Oil Uplift (Quarts)**, **EGT Margin (°C)**, **Walkaround / FOD Check Status**, **CRS Release Certificate #**, and **AME License ID**) and click **"Issue CRS & Release Aircraft for Dispatch"**, transitioning the flight badge to **DISPATCH RELEASED (CRS SIGNED)**.
+- **Visual Identity & Theme**:
+  - *Aesthetic Direction*: High-contrast aviation MRO cockpit & digital twin instrument panel (`#070b14` obsidian canvas, `#0f172a` structural slate surfaces, crisp 1px borders).
+  - *Color Palette & Semantic Signaling*: Sky blue (`#0ea5e9`) for interactive engineering controls, Emerald (`#10b981`) for verified within-limit measurements and CRS release, Amber (`#f59e0b`) for Level 2 watch/repetitive inspection bands, and Rose (`#f43f5e`) for Level 3/4 grounding exceedances.
+  - *Typography & Tabular Discipline*: Geometric sans headings paired with strict tabular monospace numerals (`font-mono tabular-nums`) for all micrometer readings, cycle counters, limit bands, and work order references.
 
 ---
 
-## 4. Engine-Scoped History Logs & Inline Sign-Off Validation (`PartCard.tsx`, `IncidentView.tsx`)
+## 3. Key Product Decisions & Trade-Offs
 
-- **Engine-Scoped & Cycle-Consistent Logbook**:
-  - Filter `componentLogs` in `PartCard.tsx` and `ComponentHistoryView.tsx` so logs explicitly created for another `engineId` do not bleed across engines, and normalize baseline seeded history entries so their `tailNumber`, `engineId`, `flightCycles`, and `flightHours` scale realistically below `currentEngine.cyclesSinceNew`.
-- **Replace `window.alert()` in `IncidentView.tsx`**:
-  - Replace `alert("Please provide Certifying Engineer Name and License ID before signing.")` at line 260 of `src/components/IncidentView.tsx` with an inline rose validation alert banner directly inside the Certifying Engineer Sign-Off section.
+- **Decision 1 — Post-Repair Measurement Validation Before Clearing Red Lights**:
+  - *Chosen Approach*: Require the engineer to input the post-repair measurement (along with action type, Work Order #, and AME License ID) and verify it against the governing AMM threshold before the 3D component clears to `default` and the engine transitions to `normal`.
+  - *Why*: Prevents accidental or unverified 1-click sign-offs during stakeholder evaluations and mirrors real EASA Part-145 / DGCA CAR-145 digital tech log compliance.
+- **Decision 2 — Deterministic Live AMM Limit Preview on Component Cards**:
+  - *Chosen Approach*: Wire the existing deterministic rules engine directly into each 3D component card's measurement input box so typing a number immediately previews the exact AMM rule band (`L0` through `L4`) before the engineer commits the finding.
+  - *Why*: Gives evaluators instant, transparent feedback showing how the rules engine classifies different numeric thresholds right inside the 3D workspace.
+
+---
+
+## 4. Technical Architecture & Data Strategy
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│                     Application State & Persistence                        │
+│  • engines (status, openCaseIds, CSN)   • dispatchedFlights (CRS records)  │
+│  • caseLogs (findings, limit rows)      • componentLogs (scoped per eng)   │
+└───────────────┬────────────────────────────────────────────┬───────────────┘
+                │                                            │
+                ▼                                            ▼
+┌───────────────────────────────────────┐  ┌─────────────────────────────────┐
+│     Flight Turnaround & CRS View      │  │     3D Digital Twin Workspace   │
+│  • Twin-Pod Telemetry & Open Cases    │  │  • Staggered 3D Component Mesh  │
+│  • Interactive CRS Dispatch Form:     │  │  • Live Gauge Measurement Input │
+│    - Oil Uplift / EGT / FOD Check     │  │    -> Deterministic AMM Check   │
+│    - AME License & Release Cert #     │  │  • Mandatory Rectification Form │
+│    - Transitions Flight -> DISPATCHED │  │    -> Post-Repair Value + WO #  │
+└───────────────────────────────────────┘  └─────────────────┬───────────────┘
+                                                             │
+                                                             ▼
+                                           ┌─────────────────────────────────┐
+                                           │  Incident Intake & Rules Engine │
+                                           │  • 1-Click Load Active Crew Log │
+                                           │  • Calibrated Numeric Inputs    │
+                                           │  • Inline Sign-Off Validation   │
+                                           └─────────────────────────────────┘
+```
+
+- **Interactive Component & State Mapping**:
+  - **Login Credentials Enhancement**: Allow editing both Engineer Name and License Badge ID on sign-in so `session.badge` and `session.name` pre-fill all downstream sign-off forms.
+  - **Live Component Gauge Evaluator**: Evaluates entered measurements against `DECISION_RULES`, creates or updates a `CaseLogEntry` and `ComponentHistoryEntry` when logged, and updates `partStatuses` (`default` / `inspect` / `affected`) and `engines` status (`normal` / `watch` / `action_required`).
+  - **Mandatory Rectification Worksheet**: Validates non-empty Work Order #, AME License ID, Action Type, and Post-Repair Measurement before invoking `onUpdatePartStatus(part.id, "default")` and appending a `defect_rectification` log entry with full repair/replacement metadata.
+  - **Flight CRS Release State**: Stores signed `FlightCRSRecord` entries per flight number (persisted in `localStorage`) and updates the Flight Schedule & Flight Status header badges to reflect formal dispatch clearance.

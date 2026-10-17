@@ -4,6 +4,7 @@ import {
   CaseLogEntry,
   DocSnippet,
   ExtractedIncident,
+  FlightInfo,
   IncidentFinding,
   IncidentMeasurementInput,
   LimitsCheckResult,
@@ -56,6 +57,9 @@ interface IncidentViewProps {
   tailNumber?: string;
   userRole?: string;
   userName?: string;
+  userBadge?: string;
+  activeFlight?: FlightInfo;
+  openCases?: CaseLogEntry[];
   onGoToTraining?: () => void;
   onOpenSearchGrounding?: (initialQuery?: string) => void;
 }
@@ -71,6 +75,9 @@ export function IncidentView({
   tailNumber,
   userRole,
   userName,
+  userBadge,
+  activeFlight,
+  openCases = [],
   onGoToTraining,
   onOpenSearchGrounding,
 }: IncidentViewProps) {
@@ -114,12 +121,46 @@ export function IncidentView({
   // Draft Tech Log & Sign-Off
   const [draftTechLog, setDraftTechLog] = useState("");
   const [copiedTechLog, setCopiedTechLog] = useState(false);
-  const [engineerName, setEngineerName] = useState("");
-  const [engineerId, setEngineerId] = useState("");
+  const [engineerName, setEngineerName] = useState(() =>
+    userName ? userName.split(" (")[0] : ""
+  );
+  const [engineerId, setEngineerId] = useState(() => userBadge || "DGCA AME #8842");
   const [rejectReason, setRejectReason] = useState("");
   const [signOffStatus, setSignOffStatus] = useState<"Pending" | "Approved" | "Edited" | "Rejected">("Pending");
   const [signOffTimestamp, setSignOffTimestamp] = useState<string | null>(null);
   const [signOffError, setSignOffError] = useState<string | null>(null);
+
+  // Load Active Flight Crew Tech Log Report & Open Case Measurements
+  const handleLoadActiveFlightReport = () => {
+    const activeCase = openCases[0];
+    const reportText =
+      activeFlight?.crewReport ||
+      activeCase?.summary ||
+      "Transit walkaround inspection logged elevated engine telemetry.";
+    setNarrative(reportText);
+    if (defaultEnginePosition) setEnginePosition(defaultEnginePosition);
+
+    const nextMeasurements: IncidentMeasurementInput = {
+      damageDepthMm: null,
+      crackLengthMm: null,
+      vibrationN1: null,
+      oilLeakDropsMin: null,
+      coatingLossPct: null,
+    };
+
+    if (activeCase) {
+      for (const f of activeCase.findings) {
+        if (!f.measurement) continue;
+        if (f.damageType === "crack") nextMeasurements.crackLengthMm = f.measurement.value;
+        else if (f.damageType === "vibration") nextMeasurements.vibrationN1 = f.measurement.value;
+        else if (f.damageType === "leak") nextMeasurements.oilLeakDropsMin = f.measurement.value;
+        else if (f.damageType === "coating_loss") nextMeasurements.coatingLossPct = f.measurement.value;
+        else nextMeasurements.damageDepthMm = f.measurement.value;
+      }
+    }
+    setMeasurements(nextMeasurements);
+    setSignOffStatus("Pending");
+  };
 
   // Load Example Scenario
   const handleLoadScenario = (scenarioId: string) => {
@@ -398,6 +439,31 @@ STATUS: Illustrative assessment. Certifying engineer sign-off required.`;
               </select>
             </div>
           </div>
+
+          {/* Active Flight Crew Tech Logbook Pre-Loader Banner */}
+          {(activeFlight?.crewReport || openCases.length > 0) && (
+            <div className="p-3.5 rounded-xl bg-sky-950/50 border border-sky-500/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-[11px] font-mono font-bold text-sky-300 uppercase">
+                  <Sparkles className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                  <span>
+                    Active Aircraft Tech Log ({activeFlight ? `Flight ${activeFlight.flightNumber} • ${activeFlight.aircraftTail}` : tailNumber})
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 font-sans leading-relaxed line-clamp-2">
+                  {activeFlight?.crewReport || openCases[0]?.summary}
+                </p>
+              </div>
+              <button
+                type="button"
+                id="btn-load-active-crew-report"
+                onClick={handleLoadActiveFlightReport}
+                className="shrink-0 px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-white font-mono font-bold text-xs shadow-md transition cursor-pointer"
+              >
+                Load Flight Crew Report & Telemetry
+              </button>
+            </div>
+          )}
 
           {/* Aircraft & Position */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

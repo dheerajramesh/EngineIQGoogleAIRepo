@@ -59,6 +59,8 @@ export type ComponentLogType =
   | "weekly_check"
   | "borescope_inspection"
   | "preventive_check"
+  | "defect_rectification"
+  | "field_measurement"
   | "repair"
   | "replacement";
 
@@ -121,6 +123,7 @@ export interface UserSession {
   name: string;
   role: UserRole;
   homeBase: string; // e.g. "Bengaluru (BLR)"
+  badge?: string; // e.g. "DGCA AME #8842"
 }
 
 export interface AircraftEngine {
@@ -413,3 +416,18 @@ export interface EngineLiveTelemetrySnapshot {
   };
   sensorList: AttachedSensorTelemetry[];
 }
+
+export interface FlightCRSRecord {
+  flightNumber: string;
+  aircraftTail: string;
+  crsReferenceNumber: string;
+  engineerName: string;
+  engineerLicense: string;
+  engine1OilUpliftQt: number;
+  engine2OilUpliftQt: number;
+  egtMarginDegC: number;
+  fodWalkaroundCheck: string;
+  releaseRemarks: string;
+  signedAt: string;
+}
+

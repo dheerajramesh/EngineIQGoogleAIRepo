@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from "react";
-import { FlightInfo, AircraftEngine, CaseLogEntry, UserSession } from "../types";
+import React, { useState } from "react";
+import { FlightInfo, AircraftEngine, CaseLogEntry, UserSession, FlightCRSRecord } from "../types";
 import {
   Plane,
   Clock,
@@ -25,6 +25,8 @@ import {
   Layers,
   Sparkles,
   ClipboardList,
+  ShieldCheck,
+  Wrench,
 } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { AppTheme } from "../types";
@@ -40,6 +42,8 @@ interface FlightStatusViewProps {
   onOpenCitation: (docId: string) => void;
   theme?: AppTheme;
   onToggleTheme?: () => void;
+  crsRecord?: FlightCRSRecord;
+  onIssueFlightCRS?: (record: FlightCRSRecord) => void;
 }
 
 export function FlightStatusView({
@@ -53,6 +57,8 @@ export function FlightStatusView({
   onOpenCitation,
   theme,
   onToggleTheme,
+  crsRecord,
+  onIssueFlightCRS,
 }: FlightStatusViewProps) {
   const engine1Cases = caseLogs.filter((c) =>
     engine1 ? engine1.openCaseIds.includes(c.id) : c.engineId === flight.engine1Id
@@ -64,6 +70,28 @@ export function FlightStatusView({
   const engine2Hours = Math.round((engine2?.cyclesSinceNew || 0) * 1.85);
   const engine1LlpMargin = Math.max(0, 15000 - (engine1?.cyclesSinceNew || 0));
   const engine2LlpMargin = Math.max(0, 15000 - (engine2?.cyclesSinceNew || 0));
+
+  // CRS Dispatch Release Form State
+  const [eng1OilQt, setEng1OilQt] = useState<string>("0.5");
+  const [eng2OilQt, setEng2OilQt] = useState<string>("0.5");
+  const [egtMargin, setEgtMargin] = useState<string>("28");
+  const [fodCheck, setFodCheck] = useState<string>("Verified Clear — Zero FOD / Cowling Latches Secure");
+  const [crsRefNumber, setCrsRefNumber] = useState<string>(
+    `CRS-6E-${flight.flightNumber.replace(/\s+/g, "")}-${new Date().toISOString().slice(5, 10).replace("-", "")}`
+  );
+  const [crsEngineerName, setCrsEngineerName] = useState<string>(
+    session.name ? session.name.split(" (")[0] : "Vikram Malhotra"
+  );
+  const [crsLicenseId, setCrsLicenseId] = useState<string>(
+    session.badge || "DGCA AME #8842"
+  );
+  const [crsRemarks, setCrsRemarks] = useState<string>(
+    "Transit walkaround, fluid replenishment, and FADEC fault memory check completed per Airbus A320neo AMM. Aircraft certified airworthy for sector dispatch."
+  );
+  const [crsError, setCrsError] = useState<string | null>(null);
+
+  const hasGroundingEngine =
+    engine1?.status === "action_required" || engine2?.status === "action_required";
 
   return (
     <div className="flex-1 overflow-y-auto bg-[#050a14] text-slate-100 p-4 sm:p-6 md:p-8 font-sans select-none">
@@ -122,7 +150,9 @@ export function FlightStatusView({
                 {/* Status pill */}
                 <span
                   className={`px-2.5 py-1 rounded-md text-xs font-mono font-bold uppercase flex items-center gap-1.5 ${
-                    flight.overallStatus === "action_required"
+                    crsRecord
+                      ? "bg-emerald-950 text-emerald-300 border border-emerald-500 shadow-md shadow-emerald-950/50"
+                      : flight.overallStatus === "action_required"
                       ? "bg-rose-950/80 text-rose-300 border border-rose-700/80"
                       : flight.overallStatus === "watch"
                       ? "bg-amber-950/80 text-amber-300 border border-amber-700/80"
@@ -131,15 +161,19 @@ export function FlightStatusView({
                 >
                   <span
                     className={`w-2 h-2 rounded-full ${
-                      flight.overallStatus === "action_required"
+                      crsRecord
+                        ? "bg-emerald-400"
+                        : flight.overallStatus === "action_required"
                         ? "bg-rose-400 animate-ping"
                         : flight.overallStatus === "watch"
                         ? "bg-amber-400"
                         : "bg-emerald-400"
                     }`}
                   />
-                  {flight.overallStatus === "normal" && flight.statusLabel.includes("Hold")
-                    ? "Cleared for Dispatch (Normal)"
+                  {crsRecord
+                    ? `DISPATCH RELEASED (${crsRecord.crsReferenceNumber})`
+                    : flight.overallStatus === "normal" && flight.statusLabel.includes("Hold")
+                    ? "Cleared for CRS Sign-Off (Normal)"
                     : flight.statusLabel}
                 </span>
               </div>
@@ -567,6 +601,278 @@ export function FlightStatusView({
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Certificate of Release to Service (CRS) & Turnaround Dispatch Panel */}
+        <div
+          className={`p-6 rounded-2xl border-2 shadow-2xl space-y-4 ${
+            crsRecord
+              ? "bg-gradient-to-r from-emerald-950/70 via-slate-900 to-slate-950 border-emerald-500/80"
+              : hasGroundingEngine
+              ? "bg-gradient-to-r from-rose-950/60 via-slate-900 to-slate-950 border-rose-500/70"
+              : "bg-gradient-to-b from-slate-900 to-slate-950 border-sky-500/60"
+          }`}
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+            <div className="flex items-center gap-3">
+              <div
+                className={`p-2.5 rounded-xl ${
+                  crsRecord
+                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
+                    : hasGroundingEngine
+                    ? "bg-rose-500/20 text-rose-400 border border-rose-500/40"
+                    : "bg-sky-500/20 text-sky-400 border border-sky-500/40"
+                }`}
+              >
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold font-mono text-white uppercase tracking-wide">
+                  Certificate of Release to Service (CRS) • Aircraft Turnaround Dispatch
+                </h3>
+                <p className="text-xs font-mono text-slate-400">
+                  DGCA CAR-145 / EASA Part-145 Line Maintenance Release for Flight {flight.flightNumber} ({flight.aircraftTail})
+                </p>
+              </div>
+            </div>
+
+            {crsRecord ? (
+              <span className="px-3 py-1 rounded-lg bg-emerald-500 text-slate-950 font-mono font-black text-xs uppercase tracking-wider">
+                CRS Signed & Dispatched
+              </span>
+            ) : hasGroundingEngine ? (
+              <span className="px-3 py-1 rounded-lg bg-rose-500 text-white font-mono font-black text-xs uppercase tracking-wider animate-pulse">
+                CRS Locked — Unrectified Red Light
+              </span>
+            ) : (
+              <span className="px-3 py-1 rounded-lg bg-sky-500/20 text-sky-300 border border-sky-500/50 font-mono font-bold text-xs uppercase">
+                Ready for CRS Sign-Off
+              </span>
+            )}
+          </div>
+
+          {crsRecord ? (
+            <div className="p-4 rounded-xl bg-slate-950/90 border border-emerald-700/60 space-y-3 text-xs font-mono">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <span className="text-[10px] uppercase text-slate-400 block">CRS Certificate #</span>
+                  <span className="text-emerald-300 font-bold">{crsRecord.crsReferenceNumber}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase text-slate-400 block">Certifying Engineer</span>
+                  <span className="text-white font-bold">
+                    {crsRecord.engineerName} ({crsRecord.engineerLicense})
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase text-slate-400 block">Oil Uplift (E1 / E2)</span>
+                  <span className="text-sky-300 font-bold">
+                    {crsRecord.engine1OilUpliftQt} qt / {crsRecord.engine2OilUpliftQt} qt
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase text-slate-400 block">EGT Margin & Walkaround</span>
+                  <span className="text-emerald-400 font-bold">
+                    +{crsRecord.egtMarginDegC}°C • {crsRecord.fodWalkaroundCheck.split("—")[0]}
+                  </span>
+                </div>
+              </div>
+              <p className="text-slate-300 font-sans pt-2 border-t border-slate-800/80">
+                <strong>Release Statement:</strong> {crsRecord.releaseRemarks} (Signed at {crsRecord.signedAt})
+              </p>
+            </div>
+          ) : hasGroundingEngine ? (
+            <div className="p-4 rounded-xl bg-rose-950/50 border border-rose-700/70 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="text-xs font-mono font-bold text-rose-300 uppercase flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                  <span>
+                    Aircraft Grounded — Mandatory Rectification Required on{" "}
+                    {engine1?.status === "action_required" ? `No. 1 Engine (${engine1.id})` : `No. 2 Engine (${engine2?.id})`}
+                  </span>
+                </div>
+                <p className="text-xs text-rose-200/90 font-sans leading-relaxed">
+                  A Certificate of Release to Service (CRS) cannot be issued while an engine has an active Level 3/4 Red Light finding. Launch the 3D Digital Twin, complete the AMM Rectification & Post-Repair Worksheet on the affected component, and return here to release the flight.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  onSelectEngine(
+                    engine1?.status === "action_required" ? flight.engine1Id : flight.engine2Id,
+                    "explore"
+                  )
+                }
+                className="shrink-0 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-mono font-bold text-xs flex items-center gap-2 shadow-lg shadow-rose-950/60 transition cursor-pointer"
+              >
+                <Wrench className="w-4 h-4" />
+                <span>Open 3D Twin & Rectify Red Light</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs font-mono">
+                <div>
+                  <label className="block text-[10px] uppercase text-slate-400 mb-1">
+                    No.1 Engine Oil Uplift (Quarts) *
+                  </label>
+                  <input
+                    id="input-crs-oil-1"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={eng1OilQt}
+                    onChange={(e) => setEng1OilQt(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-sky-500 rounded-lg px-3 py-2 text-xs text-white font-bold tabular-nums focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase text-slate-400 mb-1">
+                    No.2 Engine Oil Uplift (Quarts) *
+                  </label>
+                  <input
+                    id="input-crs-oil-2"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={eng2OilQt}
+                    onChange={(e) => setEng2OilQt(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-sky-500 rounded-lg px-3 py-2 text-xs text-white font-bold tabular-nums focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase text-slate-400 mb-1">
+                    Verified EGT Margin (°C) *
+                  </label>
+                  <input
+                    id="input-crs-egt"
+                    type="number"
+                    step="1"
+                    value={egtMargin}
+                    onChange={(e) => setEgtMargin(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-sky-500 rounded-lg px-3 py-2 text-xs text-emerald-300 font-bold tabular-nums focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase text-slate-400 mb-1">
+                    Walkaround & FOD Status *
+                  </label>
+                  <select
+                    id="select-crs-fod"
+                    value={fodCheck}
+                    onChange={(e) => setFodCheck(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-sky-500 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none"
+                  >
+                    <option value="Verified Clear — Zero FOD / Cowling Latches Secure">
+                      Verified Clear — Zero FOD / Latches Secure
+                    </option>
+                    <option value="Dispatched Under Approved MEL Category C">
+                      Dispatched Under Approved MEL Category C
+                    </option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
+                <div>
+                  <label className="block text-[10px] uppercase text-slate-400 mb-1">
+                    CRS Release Certificate # *
+                  </label>
+                  <input
+                    id="input-crs-ref"
+                    type="text"
+                    value={crsRefNumber}
+                    onChange={(e) => {
+                      setCrsRefNumber(e.target.value);
+                      if (crsError) setCrsError(null);
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-sky-500 rounded-lg px-3 py-2 text-xs text-sky-300 font-bold focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase text-slate-400 mb-1">
+                    Certifying Engineer Name *
+                  </label>
+                  <input
+                    id="input-crs-name"
+                    type="text"
+                    value={crsEngineerName}
+                    onChange={(e) => {
+                      setCrsEngineerName(e.target.value);
+                      if (crsError) setCrsError(null);
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-sky-500 rounded-lg px-3 py-2 text-xs text-white focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase text-slate-400 mb-1">
+                    DGCA / Part-66 License ID *
+                  </label>
+                  <input
+                    id="input-crs-license"
+                    type="text"
+                    value={crsLicenseId}
+                    onChange={(e) => {
+                      setCrsLicenseId(e.target.value);
+                      if (crsError) setCrsError(null);
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-sky-500 rounded-lg px-3 py-2 text-xs text-sky-300 font-bold focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">
+                  Technical Logbook CRS Release Statement
+                </label>
+                <input
+                  id="input-crs-remarks"
+                  type="text"
+                  value={crsRemarks}
+                  onChange={(e) => setCrsRemarks(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 focus:border-sky-500 rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none"
+                />
+              </div>
+
+              {crsError && (
+                <div className="p-3 rounded-lg bg-rose-950 border border-rose-500 text-xs text-rose-200 font-mono flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                  <span>{crsError}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end pt-1">
+                <button
+                  type="button"
+                  id="btn-issue-flight-crs"
+                  onClick={() => {
+                    if (!crsRefNumber.trim() || !crsEngineerName.trim() || !crsLicenseId.trim()) {
+                      setCrsError("CRS Certificate #, Certifying Engineer Name, and License ID are required.");
+                      return;
+                    }
+                    onIssueFlightCRS?.({
+                      flightNumber: flight.flightNumber,
+                      aircraftTail: flight.aircraftTail,
+                      crsReferenceNumber: crsRefNumber.trim(),
+                      engineerName: crsEngineerName.trim(),
+                      engineerLicense: crsLicenseId.trim(),
+                      engine1OilUpliftQt: parseFloat(eng1OilQt) || 0,
+                      engine2OilUpliftQt: parseFloat(eng2OilQt) || 0,
+                      egtMarginDegC: parseFloat(egtMargin) || 25,
+                      fodWalkaroundCheck: fodCheck,
+                      releaseRemarks: crsRemarks.trim(),
+                      signedAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + " IST",
+                    });
+                  }}
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-mono font-bold text-xs flex items-center gap-2 shadow-xl shadow-emerald-950/60 transition cursor-pointer"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Issue CRS & Release Flight {flight.flightNumber} for Dispatch</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Quick Reference Document Bar */}

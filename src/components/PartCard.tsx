@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   EnginePartData,
   PartId,
@@ -8,9 +8,12 @@ import {
   UserSession,
   PreventiveMaintenanceTask,
   PMSignOffRecord,
+  DamageType,
+  MeasurementUnit,
 } from "../types";
 import { askAboutPart, GroundedSource } from "../services/gemini";
 import { retrieveRelevantDocuments } from "../logic/retrieval";
+import { evaluateLimitsCheck, formatDamageType, formatUnit } from "../logic/rulesEngine";
 import { ENGINE_PARTS } from "../data/parts";
 import { ComponentHistoryView } from "./ComponentHistoryView";
 import { ComponentLifeTracker } from "./ComponentLifeTracker";
@@ -67,7 +70,21 @@ interface PartCardProps {
   allPartStatuses?: Record<PartId, PartStatus>;
   onUpdatePartStatus?: (partId: PartId, status: PartStatus) => void;
   openCases?: CaseLogEntry[];
+  onSaveCaseLog?: (entry: CaseLogEntry) => void;
 }
+
+const DEFAULT_PART_PARAMETER: Record<PartId, { damageType: DamageType; unit: MeasurementUnit; label: string; placeholder: string }> = {
+  fan_blades: { damageType: "leading_edge_nick", unit: "depth_mm", label: "Leading Edge Nick Depth (mm)", placeholder: "e.g. 1.9" },
+  fan_case: { damageType: "dent", unit: "depth_mm", label: "Containment Casing Dent Depth (mm)", placeholder: "e.g. 3.2" },
+  fan_drive_gear: { damageType: "vibration", unit: "n1_units", label: "FDGS / N1 Spool Vibration (N1 units)", placeholder: "e.g. 2.8" },
+  lpc: { damageType: "blade_nick", unit: "depth_mm", label: "LPC Booster Airfoil Nick Depth (mm)", placeholder: "e.g. 0.9" },
+  hpc: { damageType: "blade_nick", unit: "depth_mm", label: "HPC Core Airfoil Nick Depth (mm)", placeholder: "e.g. 1.2" },
+  combustor: { damageType: "coating_loss", unit: "percent_area", label: "Combustor Liner TBC Spallation (% area)", placeholder: "e.g. 18" },
+  hpt: { damageType: "coating_loss", unit: "percent_area", label: "HPT Blade TBC Coating Loss (% area)", placeholder: "e.g. 35" },
+  lpt: { damageType: "coating_loss", unit: "percent_area", label: "LPT Airfoil TBC Coating Loss (% area)", placeholder: "e.g. 15" },
+  exhaust: { damageType: "dent", unit: "depth_mm", label: "Exhaust Mixer / Cone Dent Depth (mm)", placeholder: "e.g. 2.0" },
+  oil_system: { damageType: "leak", unit: "drops_per_min", label: "AGB / Scavenge Oil Seepage (drops/min)", placeholder: "e.g. 18" },
+};
 
 export function PartCard({
   part,
@@ -90,11 +107,109 @@ export function PartCard({
   allPartStatuses,
   onUpdatePartStatus,
   openCases = [],
+  onSaveCaseLog,
 }: PartCardProps) {
   const [internalTab, setInternalTab] = useState<"specs" | "preventive" | "lifetracker" | "history">("specs");
   const cardTab = activeSubTab !== undefined ? activeSubTab : internalTab;
   const setCardTab = onSubTabChange || setInternalTab;
   const [showDefectManualView, setShowDefectManualView] = useState(false);
+
+  // Interactive Field Measurement / Micrometer Input State
+  const [showGaugeInput, setShowGaugeInput] = useState(false);
+  const [gaugeDamageType, setGaugeDamageType] = useState<DamageType>(
+    DEFAULT_PART_PARAMETER[part.id]?.damageType || "leading_edge_nick"
+  );
+  const [gaugeUnit, setGaugeUnit] = useState<MeasurementUnit>(
+    DEFAULT_PART_PARAMETER[part.id]?.unit || "depth_mm"
+  );
+  const [gaugeValue, setGaugeValue] = useState<string>("");
+  const [gaugeZone, setGaugeZone] = useState<string>(part.defaultZone);
+  const [gaugeSuccessBanner, setGaugeSuccessBanner] = useState<string | null>(null);
+
+  // Interactive Mandatory Rectification Worksheet State
+  const [showRectificationForm, setShowRectificationForm] = useState(false);
+  const [rectActionType, setRectActionType] = useState<string>("On-Wing Cold Blend & Polish Repair (AMM Task 72-00-300)");
+  const [rectPostValue, setRectPostValue] = useState<string>("0.0");
+  const [rectWorkOrder, setRectWorkOrder] = useState<string>(
+    `WO-RECT-${part.id.toUpperCase().slice(0, 4)}-${engineCycles}`
+  );
+  const [rectLicenseId, setRectLicenseId] = useState<string>(
+    userSession?.badge || "DGCA AME #8842"
+  );
+  const [rectRemovedSn, setRectRemovedSn] = useState<string>(
+    `PWA-${part.id.toUpperCase().slice(0, 4)}-1942`
+  );
+  const [rectInstalledSn, setRectInstalledSn] = useState<string>(
+    `PWA-${part.id.toUpperCase().slice(0, 4)}-8804`
+  );
+  const [rectForm1Cert, setRectForm1Cert] = useState<string>("EASA Form 1 / FAA 8130-3 #PWA-2026-991");
+  const [rectNotes, setRectNotes] = useState<string>(
+    "Completed AMM rectification procedure. FPI / NDT verified zero crack indication and full compliance with dispatch limits."
+  );
+  const [rectError, setRectError] = useState<string | null>(null);
+
+  // Reset part-specific defaults when switching components
+  useEffect(() => {
+    const def = DEFAULT_PART_PARAMETER[part.id] || DEFAULT_PART_PARAMETER.fan_blades;
+    setGaugeDamageType(def.damageType);
+    setGaugeUnit(def.unit);
+    setGaugeValue("");
+    setGaugeZone(part.defaultZone);
+    setGaugeSuccessBanner(null);
+    setShowRectificationForm(false);
+    setRectError(null);
+    setRectWorkOrder(`WO-RECT-${part.id.toUpperCase().slice(0, 4)}-${engineCycles}`);
+    setRectPostValue("0.0");
+    if (part.id === "oil_system") {
+      setRectActionType("B-Nut Union Re-Torque & Seal Replacement (AMM Task 79-00-200)");
+    } else if (part.id === "hpt" || part.id === "combustor") {
+      setRectActionType("QEC / Line Replaceable Unit Component Swap (AMM Task 72-00-400)");
+    } else if (part.id === "fan_drive_gear") {
+      setRectActionType("Trim Balance & Chip Detector Verification (AMM Task 77-10-00)");
+    } else {
+      setRectActionType("On-Wing Cold Blend & Polish Repair (AMM Task 72-00-300)");
+    }
+  }, [part.id, part.defaultZone, engineCycles]);
+
+  // Live deterministic AMM rule evaluation for the Field Gauge Input
+  const liveGaugeEvaluation = useMemo(() => {
+    const parsed = parseFloat(gaugeValue);
+    if (isNaN(parsed) || parsed < 0) return null;
+    const checkPart = gaugeDamageType === "vibration" ? "engine" : part.id;
+    return evaluateLimitsCheck([
+      {
+        id: "live-gauge-preview",
+        part: checkPart,
+        damageType: gaugeDamageType,
+        zone: gaugeZone || part.defaultZone,
+        measurement: { value: parsed, unit: gaugeUnit },
+      },
+    ]);
+  }, [gaugeValue, gaugeDamageType, gaugeUnit, gaugeZone, part.id, part.defaultZone]);
+
+  // Live post-repair measurement validation for the Rectification Worksheet
+  const activeDefectFinding = useMemo(() => {
+    const matchingCase = openCases.find((c) => c.findings.some((f) => f.part === part.id));
+    return matchingCase?.findings.find((f) => f.part === part.id);
+  }, [openCases, part.id]);
+
+  const rectDamageType: DamageType = activeDefectFinding?.damageType || DEFAULT_PART_PARAMETER[part.id]?.damageType || "leading_edge_nick";
+  const rectUnit: MeasurementUnit = activeDefectFinding?.measurement?.unit || DEFAULT_PART_PARAMETER[part.id]?.unit || "depth_mm";
+
+  const postRepairEvaluation = useMemo(() => {
+    const parsed = parseFloat(rectPostValue);
+    if (isNaN(parsed) || parsed < 0) return null;
+    const checkPart = rectDamageType === "vibration" ? "engine" : part.id;
+    return evaluateLimitsCheck([
+      {
+        id: "post-repair-check",
+        part: checkPart,
+        damageType: rectDamageType,
+        zone: part.defaultZone,
+        measurement: { value: parsed, unit: rectUnit },
+      },
+    ]);
+  }, [rectPostValue, rectDamageType, rectUnit, part.id, part.defaultZone]);
 
   // Active defect information for the selected part (dynamically overlaid with the engine's actual open case if present)
   const defectInfo = useMemo(() => {
@@ -296,22 +411,275 @@ export function PartCard({
         </div>
       </div>
 
-      {/* Subsystem Airworthiness Status Strip (Shown when normal to provide full transparency) */}
-      {!isPartAffected && !isPartInspect && (
-        <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono shadow-sm">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50"></span>
-            <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
-              Status: <span className="text-emerald-400 font-extrabold">Dispatch Ready (Normal)</span>
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5">
+      {/* Subsystem Airworthiness Status & Field Measurement Strip */}
+      <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono shadow-sm">
+        <div className="flex items-center gap-2">
+          <span
+            className={`w-2.5 h-2.5 rounded-full ${
+              isPartAffected
+                ? "bg-rose-500 animate-ping"
+                : isPartInspect
+                ? "bg-amber-400"
+                : "bg-emerald-500 shadow-sm shadow-emerald-500/50"
+            }`}
+          />
+          <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+            Status:{" "}
+            {isPartAffected ? (
+              <span className="text-rose-400 font-extrabold">Red Alert (Action Required)</span>
+            ) : isPartInspect ? (
+              <span className="text-amber-400 font-extrabold">Amber Watch (Inspect)</span>
+            ) : (
+              <span className="text-emerald-400 font-extrabold">Dispatch Ready (Normal)</span>
+            )}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            id="btn-toggle-field-gauge"
+            onClick={() => setShowGaugeInput(!showGaugeInput)}
+            className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition flex items-center gap-1 cursor-pointer ${
+              showGaugeInput
+                ? "bg-sky-500 text-white border-sky-400 shadow"
+                : "bg-sky-950/90 hover:bg-sky-900 text-sky-300 border-sky-700/80"
+            }`}
+            title="Enter a live physical micrometer or telemetry gauge reading on this component to evaluate AMM limits"
+          >
+            <Gauge className="w-3.5 h-3.5" />
+            <span>{showGaugeInput ? "Close Gauge Input" : "Enter Field Measurement"}</span>
+          </button>
+
+          {!isPartAffected && !isPartInspect && (
             <button
               onClick={() => setShowDefectManualView(!showDefectManualView)}
-              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-400 hover:text-white border border-slate-700 text-[11px] font-semibold transition cursor-pointer"
+              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[11px] font-semibold transition cursor-pointer"
               title="Inspect standard Airbus/PW AMM defect criteria and rectification procedures"
             >
-              {showDefectManualView ? "Hide AMM Reference Criteria" : "AMM Reference Limits"}
+              {showDefectManualView ? "Hide AMM Limits" : "AMM Limits"}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Interactive On-Wing Field Measurement / Micrometer Input Panel */}
+      {showGaugeInput && (
+        <div className="p-4 rounded-xl bg-slate-900/95 border-2 border-sky-500/70 shadow-xl space-y-3.5 animate-fade-in">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+            <div className="flex items-center gap-2">
+              <Gauge className="w-4 h-4 text-sky-400" />
+              <div>
+                <h4 className="text-xs font-mono font-bold text-white uppercase tracking-wider">
+                  On-Wing Micrometer & Telemetry Gauge Entry ({part.name})
+                </h4>
+                <p className="text-[11px] text-slate-400 font-sans">
+                  Enter a physical measurement to evaluate against deterministic AMM rules and update 3D status.
+                </p>
+              </div>
+            </div>
+            <span className="text-[10px] font-mono text-sky-400 bg-sky-950 px-2 py-0.5 rounded border border-sky-800">
+              {tailNumber} • {engineId}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs font-mono">
+            <div>
+              <label className="block text-[10px] uppercase text-slate-400 mb-1">
+                Inspection Parameter
+              </label>
+              <select
+                id="select-gauge-parameter"
+                value={gaugeDamageType}
+                onChange={(e) => {
+                  const dt = e.target.value as DamageType;
+                  setGaugeDamageType(dt);
+                  if (dt === "crack") setGaugeUnit("length_mm");
+                  else if (dt === "coating_loss") setGaugeUnit("percent_area");
+                  else if (dt === "leak") setGaugeUnit("drops_per_min");
+                  else if (dt === "vibration") setGaugeUnit("n1_units");
+                  else setGaugeUnit("depth_mm");
+                }}
+                className="w-full bg-slate-950 border border-slate-700 focus:border-sky-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+              >
+                <option value="leading_edge_nick">Leading Edge Nick (mm depth)</option>
+                <option value="crack">Structural Crack (mm length)</option>
+                <option value="tip_curl">Blade Tip Curl (mm deflection)</option>
+                <option value="dent">Containment / Casing Dent (mm depth)</option>
+                <option value="blade_nick">Compressor Airfoil Nick (mm depth)</option>
+                <option value="coating_loss">TBC Thermal Coating Loss (% area)</option>
+                <option value="leak">Oil System Seepage (drops/min)</option>
+                <option value="vibration">N1 Spool Vibration (N1 units)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[10px] uppercase text-slate-400 mb-1">
+                Measured Reading ({formatUnit(gaugeUnit)}) *
+              </label>
+              <input
+                id="input-field-gauge-value"
+                type="number"
+                step="0.1"
+                min="0"
+                value={gaugeValue}
+                onChange={(e) => {
+                  setGaugeValue(e.target.value);
+                  setGaugeSuccessBanner(null);
+                }}
+                placeholder={DEFAULT_PART_PARAMETER[part.id]?.placeholder || "e.g. 2.1"}
+                className="w-full bg-slate-950 border border-slate-700 focus:border-sky-500 rounded-lg px-2.5 py-1.5 text-xs text-white font-bold tabular-nums focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] uppercase text-slate-400 mb-1">
+                Component Zone / Stage
+              </label>
+              <input
+                id="input-field-gauge-zone"
+                type="text"
+                value={gaugeZone}
+                onChange={(e) => setGaugeZone(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 focus:border-sky-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Live Deterministic AMM Rule Evaluation Preview */}
+          {liveGaugeEvaluation && liveGaugeEvaluation.rows[0] && (
+            <div
+              className={`p-3 rounded-lg border text-xs font-mono space-y-1.5 ${
+                liveGaugeEvaluation.overallLevel >= 3
+                  ? "bg-rose-950/70 border-rose-500/80 text-rose-200"
+                  : liveGaugeEvaluation.overallLevel === 2
+                  ? "bg-amber-950/70 border-amber-500/80 text-amber-200"
+                  : "bg-emerald-950/60 border-emerald-500/70 text-emerald-200"
+              }`}
+            >
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <span className="font-bold uppercase text-[11px]">
+                  Live AMM Rule Evaluation: Level {liveGaugeEvaluation.overallLevel} —{" "}
+                  {liveGaugeEvaluation.overallLevel >= 3
+                    ? "RED LIGHT (MANDATORY FIX / AOG)"
+                    : liveGaugeEvaluation.overallLevel === 2
+                    ? "AMBER LIGHT (ON-WING BLEND / WATCH)"
+                    : "GREEN (WITHIN SERVICEABLE LIMITS)"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onOpenCitation(liveGaugeEvaluation.rows[0].sourceDocId)}
+                  className="px-2 py-0.5 rounded bg-slate-950 text-sky-400 border border-sky-700/60 text-[10px] hover:underline"
+                >
+                  [{liveGaugeEvaluation.rows[0].sourceDocId}]
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-300 font-sans">
+                <strong>Band Applied:</strong> {liveGaugeEvaluation.rows[0].limitBandApplied} — {liveGaugeEvaluation.rows[0].notes}
+              </p>
+            </div>
+          )}
+
+          {gaugeSuccessBanner && (
+            <div className="p-2.5 rounded-lg bg-emerald-950/80 border border-emerald-500/70 text-xs text-emerald-200 font-mono flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{gaugeSuccessBanner}</span>
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => setShowGaugeInput(false)}
+              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono transition"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              id="btn-commit-field-measurement"
+              disabled={!liveGaugeEvaluation}
+              onClick={() => {
+                if (!liveGaugeEvaluation || !liveGaugeEvaluation.rows[0]) return;
+                const parsedVal = parseFloat(gaugeValue);
+                const row = liveGaugeEvaluation.rows[0];
+                const lvl = liveGaugeEvaluation.overallLevel;
+                const newStatus: PartStatus =
+                  lvl >= 3 ? "affected" : lvl === 2 ? "inspect" : "default";
+
+                onUpdatePartStatus?.(part.id, newStatus);
+
+                // Record to Component History Logbook
+                onAddLog?.({
+                  id: `LOG-MAN-${Date.now().toString(36)}`,
+                  partId: part.id,
+                  engineId,
+                  tailNumber,
+                  date: new Date().toISOString().split("T")[0],
+                  flightHours: engineHours,
+                  flightCycles: engineCycles,
+                  logType: "field_measurement",
+                  status: lvl >= 2 ? "discrepancy" : "passed",
+                  workOrderNumber: `WO-INSP-${part.id.toUpperCase().slice(0, 4)}-${engineCycles}`,
+                  ammTaskRef: row.sourceDocId,
+                  technicianName: userSession?.name || "Line Engineer",
+                  technicianBadge: userSession?.badge || "DGCA AME #8842",
+                  itemsChecked: [
+                    `Measured ${formatDamageType(gaugeDamageType)}: ${parsedVal} ${formatUnit(gaugeUnit)} in ${gaugeZone}`,
+                    `Evaluated against ${row.sourceDocId} (${row.limitBandApplied})`,
+                  ],
+                  findingsSummary: `Field Gauge Check: ${formatDamageType(gaugeDamageType)} measured at ${parsedVal} ${formatUnit(gaugeUnit)} -> Level ${lvl}`,
+                  technicianNotes: row.notes,
+                });
+
+                // If Level >= 2, also create an active CaseLogEntry so the Defect Banner & Engine Status reflect the new measurement
+                if (lvl >= 2 && onSaveCaseLog) {
+                  const newCase: CaseLogEntry = {
+                    id: `CASE-FLD-${Date.now().toString().slice(-4)}`,
+                    timestamp: new Date().toISOString(),
+                    aircraftType: "Airbus A320neo Family (PW1100G-JM)",
+                    tailNumber,
+                    engineId,
+                    enginePosition: engineId.endsWith("ENG1") ? "No.1" : "No.2",
+                    eventType:
+                      gaugeDamageType === "leak"
+                        ? "oil_leak"
+                        : gaugeDamageType === "vibration"
+                        ? "vibration"
+                        : gaugeDamageType === "coating_loss"
+                        ? "hot_section"
+                        : "fod",
+                    summary: `On-wing inspection on ${part.name} (${gaugeZone}) recorded ${formatDamageType(
+                      gaugeDamageType
+                    )} of ${parsedVal} ${formatUnit(gaugeUnit)}.`,
+                    overallLevel: lvl,
+                    findings: [
+                      {
+                        id: `f-fld-${Date.now()}`,
+                        part: part.id,
+                        damageType: gaugeDamageType,
+                        zone: gaugeZone,
+                        measurement: { value: parsedVal, unit: gaugeUnit },
+                        isAiSuggested: false,
+                      },
+                    ],
+                    limitsRows: [row],
+                    engineerName: userSession?.name || "Certifying Engineer",
+                    engineerId: userSession?.badge || "DGCA AME #8842",
+                    decision: "Approved",
+                    draftTechLog: `FIELD MEASUREMENT LOGGED: ${tailNumber} (${engineId}) ${part.name} ${formatDamageType(
+                      gaugeDamageType
+                    )} measured ${parsedVal} ${formatUnit(gaugeUnit)}. Classified Level ${lvl} per [${row.sourceDocId}].`,
+                    aiExplanation: row.notes,
+                  };
+                  onSaveCaseLog(newCase);
+                }
+
+                setGaugeSuccessBanner(
+                  `Recorded ${parsedVal} ${formatUnit(gaugeUnit)} (Level ${lvl}). 3D component status updated to ${newStatus.toUpperCase()}.`
+                );
+              }}
+              className="px-3.5 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 disabled:opacity-40 text-white font-mono font-bold text-xs shadow-md transition cursor-pointer"
+            >
+              Commit Measurement & Update 3D Status
             </button>
           </div>
         </div>
@@ -471,15 +839,206 @@ export function PartCard({
             </div>
           </div>
 
-          {/* Bulletin & Regulatory Mandate Footer with Rectification Sign-Off */}
-          <div className="pt-2.5 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono">
-            <span className="text-slate-400 truncate">
-              Mandate: <strong className="text-slate-300">{defectInfo?.bulletinRef}</strong>
-            </span>
-            <div className="flex items-center gap-2">
-              {(isPartAffected || isPartInspect) && onUpdatePartStatus && (
+          {/* Mandatory Interactive Rectification & Post-Repair Measurement Worksheet */}
+          {(isPartAffected || isPartInspect) && onUpdatePartStatus && showRectificationForm && (
+            <div className="p-3.5 rounded-xl bg-slate-950/95 border-2 border-emerald-500/70 space-y-3 animate-fade-in">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <div className="flex items-center gap-2">
+                  <Wrench className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs font-mono font-bold text-white uppercase tracking-wider">
+                    Mandatory AMM Rectification & Post-Repair Sign-Off Worksheet
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800">
+                  Part-145 / CAR-145 CRS
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs font-mono">
+                <div className="sm:col-span-2">
+                  <label className="block text-[10px] uppercase text-slate-400 mb-1">
+                    1. Rectification Action Performed *
+                  </label>
+                  <select
+                    id="select-rect-action"
+                    value={rectActionType}
+                    onChange={(e) => setRectActionType(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                  >
+                    <option value="On-Wing Cold Blend & Polish Repair (AMM Task 72-00-300)">
+                      On-Wing Cold Blend & Polish Repair (AMM Task 72-00-300)
+                    </option>
+                    <option value="QEC / Line Replaceable Unit Component Swap (AMM Task 72-00-400)">
+                      QEC / Line Replaceable Unit Component Swap (AMM Task 72-00-400)
+                    </option>
+                    <option value="B-Nut Union Re-Torque & Seal Replacement (AMM Task 79-00-200)">
+                      B-Nut Union Re-Torque & Seal Replacement (AMM Task 79-00-200)
+                    </option>
+                    <option value="Trim Balance & Chip Detector Verification (AMM Task 77-10-00)">
+                      Trim Balance & Chip Detector Verification (AMM Task 77-10-00)
+                    </option>
+                    <option value="MEL Category C Deferred Dispatch (Within Allowable Limit)">
+                      MEL Category C Deferred Dispatch (Within Allowable Limit)
+                    </option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] uppercase text-slate-400 mb-1">
+                    2. Post-Repair Measurement ({formatUnit(rectUnit)}) *
+                  </label>
+                  <input
+                    id="input-rect-post-value"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={rectPostValue}
+                    onChange={(e) => {
+                      setRectPostValue(e.target.value);
+                      if (rectError) setRectError(null);
+                    }}
+                    placeholder="0.0"
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-emerald-300 font-bold tabular-nums focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] uppercase text-slate-400 mb-1">
+                    3. Work Order Reference # *
+                  </label>
+                  <input
+                    id="input-rect-work-order"
+                    type="text"
+                    value={rectWorkOrder}
+                    onChange={(e) => {
+                      setRectWorkOrder(e.target.value);
+                      if (rectError) setRectError(null);
+                    }}
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+                  />
+                </div>
+
+                {rectActionType.includes("Swap") && (
+                  <>
+                    <div>
+                      <label className="block text-[10px] uppercase text-slate-400 mb-1">
+                        Removed Unserviceable S/N *
+                      </label>
+                      <input
+                        type="text"
+                        value={rectRemovedSn}
+                        onChange={(e) => setRectRemovedSn(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase text-slate-400 mb-1">
+                        Installed Serviceable S/N & Form 1 *
+                      </label>
+                      <input
+                        type="text"
+                        value={`${rectInstalledSn} (${rectForm1Cert})`}
+                        onChange={(e) => setRectInstalledSn(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-emerald-300 focus:outline-none"
+                      />
+                    </div>
+                  </>
+                )}
+
+                <div>
+                  <label className="block text-[10px] uppercase text-slate-400 mb-1">
+                    4. Certifying AME License ID *
+                  </label>
+                  <input
+                    id="input-rect-license"
+                    type="text"
+                    value={rectLicenseId}
+                    onChange={(e) => {
+                      setRectLicenseId(e.target.value);
+                      if (rectError) setRectError(null);
+                    }}
+                    placeholder="e.g. DGCA AME #8842"
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-sky-300 font-bold focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] uppercase text-slate-400 mb-1">
+                    5. NDT / Rectification Verification Remarks
+                  </label>
+                  <input
+                    id="input-rect-notes"
+                    type="text"
+                    value={rectNotes}
+                    onChange={(e) => setRectNotes(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Post-Repair AMM Limit Check Indicator */}
+              {postRepairEvaluation && (
+                <div
+                  className={`p-2.5 rounded-lg border text-[11px] font-mono flex items-center justify-between ${
+                    postRepairEvaluation.overallLevel <= 1
+                      ? "bg-emerald-950/70 border-emerald-600/70 text-emerald-300"
+                      : postRepairEvaluation.overallLevel === 2
+                      ? "bg-amber-950/70 border-amber-600/70 text-amber-300"
+                      : "bg-rose-950/80 border-rose-500 text-rose-300"
+                  }`}
+                >
+                  <span>
+                    Post-Repair AMM Check: <strong>{rectPostValue} {formatUnit(rectUnit)}</strong> &rarr; Level {postRepairEvaluation.overallLevel} (
+                    {postRepairEvaluation.overallLevel <= 1
+                      ? "Serviceable — Ready to Clear Red Light"
+                      : postRepairEvaluation.overallLevel === 2
+                      ? "Within Level 2 Blend/Watch Envelope"
+                      : "Exceeds AMM Limit — Must Reduce Below Threshold"}
+                    )
+                  </span>
+                </div>
+              )}
+
+              {rectError && (
+                <div className="p-2.5 rounded-lg bg-rose-950 border border-rose-500 text-xs text-rose-200 font-mono flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                  <span>{rectError}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-1">
                 <button
+                  type="button"
                   onClick={() => {
+                    setShowRectificationForm(false);
+                    setRectError(null);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  id="btn-confirm-rectification-signoff"
+                  onClick={() => {
+                    const parsedPost = parseFloat(rectPostValue);
+                    if (isNaN(parsedPost) || parsedPost < 0) {
+                      setRectError("Please enter a valid numeric Post-Repair Measurement.");
+                      return;
+                    }
+                    if (!rectWorkOrder.trim() || !rectLicenseId.trim()) {
+                      setRectError("Work Order Reference # and Certifying AME License ID are mandatory.");
+                      return;
+                    }
+                    if (postRepairEvaluation && postRepairEvaluation.overallLevel >= 3) {
+                      setRectError(
+                        `Post-repair value (${parsedPost} ${formatUnit(
+                          rectUnit
+                        )}) still triggers Level ${postRepairEvaluation.overallLevel} grounding. Enter a compliant post-repair reading (e.g. 0.0) after rectification.`
+                      );
+                      return;
+                    }
+
                     onUpdatePartStatus(part.id, "default");
                     onAddLog?.({
                       id: `LOG-RECT-${Date.now().toString(36)}`,
@@ -490,28 +1049,72 @@ export function PartCard({
                       flightHours: engineHours,
                       flightCycles: engineCycles,
                       logType: "defect_rectification",
-                      status: "passed",
-                      workOrderNumber: `WO-FIX-${part.id.toUpperCase().slice(0, 4)}-${engineCycles}`,
+                      status: rectActionType.includes("Swap") ? "replaced" : "repaired",
+                      workOrderNumber: rectWorkOrder.trim(),
                       ammTaskRef: defectInfo?.governingManual || "AMM 72-00-00",
                       technicianName: userSession?.name || "Certifying Engineer",
-                      technicianBadge: "AME-LIC-DEMO",
-                      itemsChecked: defectInfo?.requiredAction.slice(0, 3) || ["Visual Inspection", "Torque Check"],
-                      findingsSummary: `Rectified: Completed required actions per ${defectInfo?.governingManual || "AMM"}`,
-                      technicianNotes: `Defect cleared and component returned to service. Airworthiness determination verified compliant.`,
+                      technicianBadge: rectLicenseId.trim(),
+                      itemsChecked: [
+                        `Action: ${rectActionType}`,
+                        `Post-Repair Reading: ${parsedPost} ${formatUnit(rectUnit)} (Verified Level ${
+                          postRepairEvaluation?.overallLevel ?? 0
+                        })`,
+                        ...(defectInfo?.requiredAction.slice(0, 2) || []),
+                      ],
+                      findingsSummary: `Rectified (${rectActionType.split("(")[0].trim()}): Post-repair reading ${parsedPost} ${formatUnit(
+                        rectUnit
+                      )} verified compliant per ${defectInfo?.governingManual || "AMM"}`,
+                      technicianNotes: rectNotes.trim(),
+                      repairDetails: !rectActionType.includes("Swap")
+                        ? {
+                            actionTaken: rectActionType,
+                            blendedDepthMm: parsedPost,
+                            ndtMethod: "FPI / Eddy-Current & Borescope Verification",
+                            ndtResult: "Passed — Zero crack or limit exceedance",
+                          }
+                        : undefined,
+                      replacementDetails: rectActionType.includes("Swap")
+                        ? {
+                            removedPartSerialNumber: rectRemovedSn,
+                            installedPartSerialNumber: rectInstalledSn,
+                            airworthinessReleaseCert: rectForm1Cert,
+                            reasonForRemoval: defectInfo?.defectTitle || "Unserviceable defect exceedance",
+                          }
+                        : undefined,
                     });
+                    setShowRectificationForm(false);
                   }}
-                  className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 shadow-md shadow-emerald-950/50 transition cursor-pointer"
-                  title="Sign off maintenance procedure and clear red warning light"
+                  className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-mono font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-950/60 transition cursor-pointer"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Sign Off Fix & Clear Red Light</span>
+                  <span>Verify Post-Repair Limits & Clear Red Light</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Bulletin & Regulatory Mandate Footer with Rectification Sign-Off Trigger */}
+          <div className="pt-2.5 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono">
+            <span className="text-slate-400 truncate">
+              Mandate: <strong className="text-slate-300">{defectInfo?.bulletinRef}</strong>
+            </span>
+            <div className="flex items-center gap-2">
+              {(isPartAffected || isPartInspect) && onUpdatePartStatus && !showRectificationForm && (
+                <button
+                  id="btn-open-rectification-worksheet"
+                  onClick={() => setShowRectificationForm(true)}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-950/50 transition cursor-pointer"
+                  title="Open Rectification & Post-Repair Measurement Worksheet to sign off fix"
+                >
+                  <Wrench className="w-3.5 h-3.5" />
+                  <span>Complete Rectification & Sign Off Fix</span>
                 </button>
               )}
               <button
                 onClick={() => setCardTab("history")}
                 className="text-sky-400 hover:text-white hover:underline flex items-center gap-1 font-semibold cursor-pointer"
               >
-                <span>Record in Logbook</span> &rarr;
+                <span>View Logbook</span> &rarr;
               </button>
             </div>
           </div>

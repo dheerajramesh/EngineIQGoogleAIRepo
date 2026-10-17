@@ -16,6 +16,7 @@ import {
   PreventiveMaintenanceTask,
   PMSignOffRecord,
   AppTheme,
+  FlightCRSRecord,
 } from "./types";
 import { ENGINE_PARTS } from "./data/parts";
 import {
@@ -208,6 +209,36 @@ export default function App() {
       console.warn("Could not save preventive tasks to localStorage", e);
     }
   }, [preventiveTasks]);
+
+  // 6b. Signed Flight Certificate of Release to Service (CRS) Records State
+  const [flightCRSRecords, setFlightCRSRecords] = useState<Record<string, FlightCRSRecord>>(() => {
+    try {
+      const saved = localStorage.getItem("engineiq_flight_crs_v3");
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const handleIssueFlightCRS = (record: FlightCRSRecord) => {
+    setFlightCRSRecords((prev) => {
+      const updated = { ...prev, [record.flightNumber]: record };
+      try {
+        localStorage.setItem("engineiq_flight_crs_v3", JSON.stringify(updated));
+      } catch (e) {
+        console.warn("Failed to save flight CRS records", e);
+      }
+      return updated;
+    });
+
+    setLiveToast({
+      id: `toast-crs-${Date.now()}`,
+      message: `Flight ${record.flightNumber} (${record.aircraftTail}): CRS ${record.crsReferenceNumber} signed by ${record.engineerName}. Aircraft released for dispatch.`,
+      engineId: "",
+      tailNumber: record.aircraftTail,
+      level: 1,
+    });
+  };
 
   const handleSignOffPMTask = (taskId: string, record: PMSignOffRecord) => {
     const activeCycles = currentEngine?.cyclesSinceNew || 5120;
@@ -700,18 +731,36 @@ export default function App() {
   if (!currentEngineId || !currentEngine) {
     return (
       <div className={`relative min-h-screen w-screen overflow-hidden transition-colors duration-300 ${theme === "light" ? "bg-[#f8fafc]" : "bg-[#070b14]"}`}>
-        {/* Live Incident Toast Banner */}
+        {/* Live Incident / CRS Toast Banner */}
         {liveToast && (
           <div className="fixed top-10 right-4 sm:right-6 z-50 animate-bounce-short max-w-md w-full">
-            <div className="p-4 rounded-xl bg-slate-900 border-2 border-rose-500 shadow-2xl shadow-rose-950/60 flex items-center justify-between gap-3 text-white">
+            <div
+              className={`p-4 rounded-xl bg-slate-900 border-2 shadow-2xl flex items-center justify-between gap-3 text-white ${
+                liveToast.level === 1
+                  ? "border-emerald-500 shadow-emerald-950/60"
+                  : "border-rose-500 shadow-rose-950/60"
+              }`}
+            >
               <div className="flex items-center gap-3">
-                <span className="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-400 border border-rose-500/40 flex items-center justify-center shrink-0">
+                <span
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
+                    liveToast.level === 1
+                      ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40"
+                      : "bg-rose-500/20 text-rose-400 border-rose-500/40"
+                  }`}
+                >
                   <Zap className="w-4 h-4 animate-pulse" />
                 </span>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded bg-rose-950 text-rose-300 border border-rose-700">
-                      LIVE INCIDENT INJECTED
+                    <span
+                      className={`font-mono text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded border ${
+                        liveToast.level === 1
+                          ? "bg-emerald-950 text-emerald-300 border-emerald-700"
+                          : "bg-rose-950 text-rose-300 border-rose-700"
+                      }`}
+                    >
+                      {liveToast.level === 1 ? "MRO LOGBOOK UPDATED" : "LIVE INCIDENT INJECTED"}
                     </span>
                     <span className="text-[10px] font-mono text-slate-400">Just Now</span>
                   </div>
@@ -722,16 +771,18 @@ export default function App() {
               </div>
 
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    handleSelectEngine(liveToast.engineId, "caselog");
-                    setLiveToast(null);
-                  }}
-                  className="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-mono font-bold text-xs flex items-center gap-1 transition shadow"
-                >
-                  <span>View</span>
-                  <ArrowRight className="w-3 h-3" />
-                </button>
+                {liveToast.engineId && (
+                  <button
+                    onClick={() => {
+                      handleSelectEngine(liveToast.engineId, "caselog");
+                      setLiveToast(null);
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-mono font-bold text-xs flex items-center gap-1 transition shadow"
+                  >
+                    <span>View</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </button>
+                )}
                 <button
                   onClick={() => setLiveToast(null)}
                   className="p-1 text-slate-400 hover:text-white rounded transition"
@@ -754,6 +805,8 @@ export default function App() {
           initialFlightNumber={selectedFlightNumber}
           theme={theme}
           onToggleTheme={toggleTheme}
+          crsRecords={flightCRSRecords}
+          onIssueFlightCRS={handleIssueFlightCRS}
           onFlightChange={(fNum) => {
             setSelectedFlightNumber(fNum);
             try {
@@ -1107,6 +1160,7 @@ export default function App() {
                 allPartStatuses={partStatuses}
                 onUpdatePartStatus={handleUpdatePartStatus}
                 openCases={caseLogs.filter((c) => currentEngine.openCaseIds.includes(c.id))}
+                onSaveCaseLog={handleSaveCaseLog}
               />
             )}
 
@@ -1126,6 +1180,9 @@ export default function App() {
               tailNumber={currentEngine.tailNumber}
               userRole={session.role}
               userName={session.name}
+              userBadge={session.badge}
+              activeFlight={activeFlight || undefined}
+              openCases={caseLogs.filter((c) => currentEngine.openCaseIds.includes(c.id))}
               onOpenSearchGrounding={(q) => {
                 if (q) setSearchModalQuery(q);
                 setIsSearchModalOpen(true);

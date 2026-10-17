@@ -73,18 +73,25 @@ const DEMO_PERSONAS: DemoPersona[] = [
 export function LoginView({ onLogin, theme, onToggleTheme }: LoginViewProps) {
   const [selectedPersona, setSelectedPersona] = useState<DemoPersona>(DEMO_PERSONAS[0]);
   const [customName, setCustomName] = useState(DEMO_PERSONAS[0].name);
+  const [customBadge, setCustomBadge] = useState(DEMO_PERSONAS[0].badge);
+  const [customBase, setCustomBase] = useState(DEMO_PERSONAS[0].base);
 
   const handleSelectPersona = (p: DemoPersona) => {
     setSelectedPersona(p);
     setCustomName(p.name);
+    setCustomBadge(p.badge);
+    setCustomBase(p.base);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const finalName = customName.trim() || selectedPersona.name;
+    const finalBadge = customBadge.trim() || selectedPersona.badge;
     onLogin({
-      name: `${customName.trim()} (${selectedPersona.badge})`,
+      name: `${finalName} (${finalBadge})`,
       role: selectedPersona.role,
-      homeBase: selectedPersona.base,
+      homeBase: customBase.trim() || selectedPersona.base,
+      badge: finalBadge,
     });
   };
 
@@ -162,15 +169,15 @@ export function LoginView({ onLogin, theme, onToggleTheme }: LoginViewProps) {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs font-mono">
               <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
                 <span className="text-sky-400 font-bold block mb-1">01. Sign In</span>
-                <span className="text-slate-400 text-[11px] leading-snug block">Select your engineering station role</span>
+                <span className="text-slate-400 text-[11px] leading-snug block">Enter your AME license & station role</span>
               </div>
               <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
-                <span className="text-sky-400 font-bold block mb-1">02. Choose Flight</span>
-                <span className="text-slate-400 text-[11px] leading-snug block">Review turnaround timetable & crew logs</span>
+                <span className="text-sky-400 font-bold block mb-1">02. Inspect & Measure</span>
+                <span className="text-slate-400 text-[11px] leading-snug block">Enter gauge values & evaluate AMM limits</span>
               </div>
               <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
-                <span className="text-sky-400 font-bold block mb-1">03. Inspect 3D Twin</span>
-                <span className="text-slate-400 text-[11px] leading-snug block">Investigate components, LLPs & signs</span>
+                <span className="text-sky-400 font-bold block mb-1">03. Rectify & Dispatch</span>
+                <span className="text-slate-400 text-[11px] leading-snug block">Record repair values & sign Flight CRS</span>
               </div>
             </div>
           </div>
@@ -179,7 +186,7 @@ export function LoginView({ onLogin, theme, onToggleTheme }: LoginViewProps) {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-3">
               <label className="block text-xs font-mono uppercase tracking-wider text-slate-300 font-semibold">
-                Select Demonstration Profile
+                1. Select Station Role Preset (or customize credentials below)
               </label>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -231,19 +238,57 @@ export function LoginView({ onLogin, theme, onToggleTheme }: LoginViewProps) {
               </div>
             </div>
 
-            {/* Engineer Details Confirmation */}
-            <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
-              <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-slate-400">Certifying Name:</span>
-                <span className="text-white font-bold">{customName}</span>
+            {/* Interactive Engineer Credentials Input Fields */}
+            <div className="p-4 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-3">
+              <div className="text-xs font-mono uppercase tracking-wider text-slate-300 font-semibold">
+                2. Certifying Engineer Credentials (Used for Work Orders & CRS Sign-Off)
               </div>
-              <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-slate-400">License / Badge:</span>
-                <span className="text-sky-400 font-bold">{selectedPersona.badge}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-slate-400">Operating Base:</span>
-                <span className="text-slate-200">{selectedPersona.stationName}</span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
+                <div>
+                  <label htmlFor="login-engineer-name" className="block text-[10px] uppercase text-slate-400 mb-1">
+                    Engineer Full Name *
+                  </label>
+                  <input
+                    id="login-engineer-name"
+                    type="text"
+                    required
+                    value={customName}
+                    onChange={(e) => setCustomName(e.target.value)}
+                    placeholder="e.g. Vikram Malhotra"
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-sky-500 rounded-lg px-3 py-2 text-xs text-white focus:outline-none transition"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="login-engineer-badge" className="block text-[10px] uppercase text-slate-400 mb-1">
+                    DGCA / Part-66 License ID *
+                  </label>
+                  <input
+                    id="login-engineer-badge"
+                    type="text"
+                    required
+                    value={customBadge}
+                    onChange={(e) => setCustomBadge(e.target.value)}
+                    placeholder="e.g. DGCA AME #8842"
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-sky-500 rounded-lg px-3 py-2 text-xs text-sky-300 font-bold focus:outline-none transition"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="login-engineer-base" className="block text-[10px] uppercase text-slate-400 mb-1">
+                    Line Station Base
+                  </label>
+                  <select
+                    id="login-engineer-base"
+                    value={customBase}
+                    onChange={(e) => setCustomBase(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-sky-500 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none transition"
+                  >
+                    <option value="Delhi (DEL)">Delhi (DEL) — IGI T3</option>
+                    <option value="Mumbai (BOM)">Mumbai (BOM) — CSIA T2</option>
+                    <option value="Bengaluru (BLR)">Bengaluru (BLR) — MRO Hub</option>
+                    <option value="Hyderabad (HYD)">Hyderabad (HYD) — RGIA</option>
+                    <option value="Chennai (MAA)">Chennai (MAA) — Line Base</option>
+                  </select>
+                </div>
               </div>
             </div>
 

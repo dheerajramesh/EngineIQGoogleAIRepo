@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo } from "react";
-import { AircraftEngine, CaseLogEntry, UserSession, FlightInfo, AppTheme } from "../types";
+import { AircraftEngine, CaseLogEntry, UserSession, FlightInfo, AppTheme, FlightCRSRecord } from "../types";
 import { WORST_LLP_CYCLE_LIMIT, FLEET_LOCATIONS } from "../data/fleet";
 import { INDIGO_FLIGHTS } from "../data/flights";
 import { FlightStatusView } from "./FlightStatusView";
@@ -58,6 +58,8 @@ interface FleetDashboardProps {
   onFlightChange?: (flightNumber: string | null) => void;
   theme?: AppTheme;
   onToggleTheme?: () => void;
+  crsRecords?: Record<string, FlightCRSRecord>;
+  onIssueFlightCRS?: (record: FlightCRSRecord) => void;
 }
 
 export function FleetDashboard({
@@ -72,6 +74,8 @@ export function FleetDashboard({
   onFlightChange,
   theme,
   onToggleTheme,
+  crsRecords = {},
+  onIssueFlightCRS,
 }: FleetDashboardProps) {
   // Selected flight for detailed flight status view
   const [selectedFlightNumber, setSelectedFlightNumber] = useState<string | null>(initialFlightNumber);
@@ -121,7 +125,7 @@ export function FleetDashboard({
     return engines;
   }, [selectedFlightNumber, engines]);
 
-  // Dynamically derive flight overallStatus and activeAlertCount from live engine states
+  // Dynamically derive flight overallStatus, statusLabel, and activeAlertCount from live engine states & CRS records
   const liveFlights = useMemo(() => {
     return INDIGO_FLIGHTS.map((f) => {
       const e1 = engines.find((e) => e.id === f.engine1Id);
@@ -135,13 +139,25 @@ export function FleetDashboard({
       const activeAlertCount =
         (e1 && e1.status !== "normal" ? Math.max(1, e1.openCaseIds.length) : 0) +
         (e2 && e2.status !== "normal" ? Math.max(1, e2.openCaseIds.length) : 0);
+      const crs = crsRecords[f.flightNumber];
+      const statusLabel =
+        overallStatus === "action_required"
+          ? "Maintenance Hold • Action Required"
+          : crs
+          ? `CRS Signed • Released (${crs.crsReferenceNumber})`
+          : overallStatus === "watch"
+          ? "Turnaround • Watch"
+          : f.overallStatus === "action_required"
+          ? "Rectified • Ready for CRS"
+          : f.statusLabel;
       return {
         ...f,
         overallStatus,
+        statusLabel,
         activeAlertCount,
       };
     });
-  }, [engines]);
+  }, [engines, crsRecords]);
 
   // Filtered Flights List
   const filteredFlights = useMemo(() => {
@@ -299,6 +315,8 @@ export function FleetDashboard({
           onOpenCitation={onOpenCitation}
           theme={theme}
           onToggleTheme={onToggleTheme}
+          crsRecord={crsRecords[flight.flightNumber]}
+          onIssueFlightCRS={onIssueFlightCRS}
         />
       </div>
     );
