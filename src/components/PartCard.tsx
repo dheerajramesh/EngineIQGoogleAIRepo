@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   EnginePartData,
   PartId,
@@ -13,11 +13,14 @@ import { ENGINE_PARTS } from "../data/parts";
 import { ComponentHistoryView } from "./ComponentHistoryView";
 import { ComponentLifeTracker } from "./ComponentLifeTracker";
 import { ComponentPreventiveTab } from "./ComponentPreventiveTab";
+import { COMPONENT_DEFECTS } from "../data/componentDefects";
 import {
   Info,
   Layers,
   Activity,
   AlertTriangle,
+  AlertOctagon,
+  ShieldAlert,
   Search,
   Clock,
   Wrench,
@@ -58,6 +61,9 @@ interface PartCardProps {
   onOpenFullPreventiveSchedule?: () => void;
   activeSubTab?: "specs" | "preventive" | "lifetracker" | "history";
   onSubTabChange?: (tab: "specs" | "preventive" | "lifetracker" | "history") => void;
+  partStatus?: PartStatus;
+  allPartStatuses?: Record<PartId, PartStatus>;
+  onUpdatePartStatus?: (partId: PartId, status: PartStatus) => void;
 }
 
 export function PartCard({
@@ -77,10 +83,29 @@ export function PartCard({
   onOpenFullPreventiveSchedule,
   activeSubTab,
   onSubTabChange,
+  partStatus = "default",
+  allPartStatuses,
+  onUpdatePartStatus,
 }: PartCardProps) {
   const [internalTab, setInternalTab] = useState<"specs" | "preventive" | "lifetracker" | "history">("specs");
   const cardTab = activeSubTab !== undefined ? activeSubTab : internalTab;
   const setCardTab = onSubTabChange || setInternalTab;
+  const [showDefectManualView, setShowDefectManualView] = useState(false);
+
+  // Active defect information for the selected part
+  const defectInfo = COMPONENT_DEFECTS[part.id];
+  const isPartAffected = partStatus === "affected";
+  const isPartInspect = partStatus === "inspect";
+  const shouldShowDefectBanner = isPartAffected || isPartInspect || showDefectManualView;
+
+  // Check if other components in the engine have active Red/Amber warnings
+  const otherAffectedParts = useMemo(() => {
+    if (!allPartStatuses) return [];
+    return (Object.entries(allPartStatuses) as [PartId, PartStatus][])
+      .filter(([id, status]) => (status === "affected" || status === "inspect") && id !== part.id)
+      .map(([id]) => id);
+  }, [allPartStatuses, part.id]);
+
   const [question, setQuestion] = useState("");
   const [isAsking, setIsAsking] = useState(false);
   const [answer, setAnswer] = useState<string | null>(null);
@@ -180,6 +205,246 @@ export function PartCard({
           </div>
         </div>
       </div>
+
+      {/* Subsystem Airworthiness Status Strip (Shown when normal to provide full transparency) */}
+      {!isPartAffected && !isPartInspect && (
+        <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50"></span>
+            <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+              Status: <span className="text-emerald-400 font-extrabold">Dispatch Ready (Normal)</span>
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setShowDefectManualView(!showDefectManualView)}
+              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-400 hover:text-white border border-slate-700 text-[11px] font-semibold transition cursor-pointer"
+              title="Inspect standard Airbus/PW AMM defect criteria and rectification procedures"
+            >
+              {showDefectManualView ? "Hide AMM Fix Criteria" : "View AMM Defect & Fix Guidelines"}
+            </button>
+            {onUpdatePartStatus && (
+              <button
+                onClick={() => onUpdatePartStatus(part.id, "affected")}
+                className="px-2 py-1 rounded-lg bg-rose-950/70 hover:bg-rose-900 text-rose-300 hover:text-rose-100 border border-rose-800/60 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer"
+                title="Test: Illuminate this component in red and display mandatory fix procedure"
+              >
+                <AlertTriangle className="w-3 h-3 text-rose-400" />
+                <span>Simulate Red Alert</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 1. Global Attention Strip: When other components have active red/amber warning lights */}
+      {otherAffectedParts.length > 0 && !isPartAffected && (
+        <div className="p-3 rounded-xl bg-gradient-to-r from-rose-950/80 via-slate-900 to-amber-950/70 border-2 border-rose-600/70 shadow-lg flex items-center justify-between gap-3 animate-fade-in">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="relative flex h-3 w-3 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+            </span>
+            <div className="min-w-0">
+              <span className="text-[10px] font-mono uppercase text-rose-300 font-bold tracking-wider block">
+                ⚠ {otherAffectedParts.length} Component Flagged with Red Warning Lights:
+              </span>
+              <p className="text-xs text-white font-semibold truncate mt-0.5 font-sans">
+                {otherAffectedParts.map((id) => ENGINE_PARTS[id]?.name || id).join(", ")}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => onSelectConnectedPart(otherAffectedParts[0])}
+            className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-mono font-bold shadow-md shadow-rose-950/50 transition cursor-pointer"
+            title="Inspect the affected component and its required fix"
+          >
+            <span>Inspect Defect & Fix</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* 2. Prominent Defect & Fix Required Alert Banner */}
+      {shouldShowDefectBanner && (
+        <div
+          className={`p-4 rounded-xl border-2 shadow-2xl space-y-3.5 animate-scale-in ${
+            isPartAffected
+              ? "bg-gradient-to-b from-rose-950/90 via-slate-900 to-slate-950 border-rose-500 shadow-rose-950/60"
+              : isPartInspect
+              ? "bg-gradient-to-b from-amber-950/90 via-slate-900 to-slate-950 border-amber-500 shadow-amber-950/60"
+              : "bg-gradient-to-b from-sky-950/80 via-slate-900 to-slate-950 border-sky-500/80 shadow-sky-950/40"
+          }`}
+        >
+          {/* Header Row */}
+          <div className="flex items-center justify-between flex-wrap gap-2 pb-2.5 border-b border-slate-800">
+            <div className="flex items-center gap-2.5">
+              <div
+                className={`p-2 rounded-lg ${
+                  isPartAffected
+                    ? "bg-rose-500/20 text-rose-400 border border-rose-500/40"
+                    : isPartInspect
+                    ? "bg-amber-500/20 text-amber-400 border border-amber-500/40"
+                    : "bg-sky-500/20 text-sky-400 border border-sky-500/40"
+                }`}
+              >
+                <ShieldAlert className="w-5 h-5 shrink-0" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] font-mono font-black uppercase tracking-wider ${
+                      isPartAffected
+                        ? "bg-rose-500 text-white shadow animate-pulse"
+                        : isPartInspect
+                        ? "bg-amber-500 text-slate-950 font-extrabold"
+                        : "bg-sky-500 text-slate-950 font-extrabold"
+                    }`}
+                  >
+                    {isPartAffected
+                      ? "RED LIGHT • ACTION REQUIRED BEFORE DISPATCH"
+                      : isPartInspect
+                      ? "AMBER LIGHT • SCHEDULED INSPECTION"
+                      : "AMM REFERENCE GUIDELINES • RECTIFICATION PROTOCOL"}
+                  </span>
+                  <span className="text-[11px] font-mono text-slate-400">
+                    {part.defaultZone}
+                  </span>
+                </div>
+                <h3 className="text-sm font-bold text-white mt-1">
+                  {defectInfo?.defectTitle || `${part.name} Active Airworthiness Defect`}
+                </h3>
+              </div>
+            </div>
+
+            <button
+              onClick={() => onOpenCitation(defectInfo?.sourceDocId || "DEMO-AMM-72-01")}
+              className="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-sky-400 hover:text-white border border-sky-800/60 font-mono text-xs flex items-center gap-1 transition cursor-pointer"
+              title="Open Governing Maintenance Manual"
+            >
+              <span>{defectInfo?.governingManual || "AMM 72-00-00"}</span>
+              <ExternalLink className="w-3 h-3" />
+            </button>
+          </div>
+
+          {/* Core Findings & Telemetry Measurements */}
+          <div className="p-3 rounded-lg bg-slate-950/90 border border-slate-800 space-y-1">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-semibold block">
+              Observed Defect & Measured Findings:
+            </span>
+            <p className="text-xs text-rose-200 font-mono leading-relaxed">
+              {defectInfo?.findings}
+            </p>
+          </div>
+
+          {/* Airworthiness Determination (Does it need to be fixed or not?) */}
+          <div className="p-3 rounded-lg bg-slate-900/90 border border-slate-800 flex items-start gap-3">
+            <div
+              className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${
+                defectInfo?.isFixRequired
+                  ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
+                  : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+              }`}
+            >
+              {defectInfo?.isFixRequired ? (
+                <AlertOctagon className="w-4 h-4" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4" />
+              )}
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] font-mono uppercase font-bold text-slate-300">
+                  Airworthiness Fix Determination:
+                </span>
+                <span
+                  className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
+                    defectInfo?.isFixRequired
+                      ? "bg-rose-950 text-rose-300 border border-rose-700"
+                      : "bg-emerald-950 text-emerald-300 border border-emerald-700"
+                  }`}
+                >
+                  {defectInfo?.fixDetermination}
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                {defectInfo?.fixDeterminationDescription}
+              </p>
+            </div>
+          </div>
+
+          {/* Step-by-Step Required Action / Rectification Procedure */}
+          <div className="space-y-2">
+            <span className="text-[11px] font-mono uppercase tracking-wider font-bold text-sky-400 flex items-center gap-1.5">
+              <Wrench className="w-3.5 h-3.5" />
+              Required Rectification Procedure (How to Fix This):
+            </span>
+            <div className="space-y-1.5 pl-1">
+              {defectInfo?.requiredAction.map((step, idx) => (
+                <div key={idx} className="flex items-start gap-2 text-xs text-slate-200">
+                  <span className="w-5 h-5 rounded-full bg-slate-800 text-sky-400 font-mono text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5 border border-slate-700">
+                    {idx + 1}
+                  </span>
+                  <span className="leading-relaxed font-sans">{step}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Bulletin & Regulatory Mandate Footer with Rectification Sign-Off */}
+          <div className="pt-2.5 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono">
+            <span className="text-slate-400 truncate">
+              Mandate: <strong className="text-slate-300">{defectInfo?.bulletinRef}</strong>
+            </span>
+            <div className="flex items-center gap-2">
+              {(isPartAffected || isPartInspect) && onUpdatePartStatus && (
+                <button
+                  onClick={() => {
+                    onUpdatePartStatus(part.id, "default");
+                    onAddLog?.({
+                      id: `LOG-RECT-${Date.now().toString(36)}`,
+                      partId: part.id,
+                      engineId,
+                      tailNumber,
+                      date: new Date().toISOString().split("T")[0],
+                      flightHours: engineHours,
+                      flightCycles: engineCycles,
+                      logType: "defect_rectification",
+                      status: "passed",
+                      workOrderNumber: `WO-FIX-${part.id.toUpperCase().slice(0, 4)}-${engineCycles}`,
+                      ammTaskRef: defectInfo?.governingManual || "AMM 72-00-00",
+                      technicianName: userSession?.name || "Certifying Engineer",
+                      technicianBadge: "AME-LIC-DEMO",
+                      itemsChecked: defectInfo?.requiredAction.slice(0, 3) || ["Visual Inspection", "Torque Check"],
+                      findingsSummary: `Rectified: Completed required actions per ${defectInfo?.governingManual || "AMM"}`,
+                      technicianNotes: `Defect cleared and component returned to service. Airworthiness determination verified compliant.`,
+                    });
+                  }}
+                  className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 shadow-md shadow-emerald-950/50 transition cursor-pointer"
+                  title="Sign off maintenance procedure and clear red warning light"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Sign Off Fix & Clear Red Light</span>
+                </button>
+              )}
+              {showDefectManualView && !isPartAffected && onUpdatePartStatus && (
+                <button
+                  onClick={() => onUpdatePartStatus(part.id, "affected")}
+                  className="px-2 py-1 rounded bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-800 text-xs font-bold transition cursor-pointer"
+                >
+                  Simulate Red Alert in 3D
+                </button>
+              )}
+              <button
+                onClick={() => setCardTab("history")}
+                className="text-sky-400 hover:text-white hover:underline flex items-center gap-1 font-semibold cursor-pointer"
+              >
+                <span>Record in Logbook</span> &rarr;
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Header Banner */}
       <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 shadow-lg">

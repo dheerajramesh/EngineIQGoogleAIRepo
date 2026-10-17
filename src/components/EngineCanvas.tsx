@@ -4,7 +4,15 @@ import { OrbitControls, Html, Grid } from "@react-three/drei";
 import * as THREE from "three";
 import { PartId, PartStatus } from "../types";
 import { ENGINE_PARTS } from "../data/parts";
-import { Maximize2, Minimize2, RotateCcw, Tag } from "lucide-react";
+import {
+  Maximize2,
+  Minimize2,
+  RotateCcw,
+  Tag,
+  Cpu,
+  Ruler,
+  AlertTriangle,
+} from "lucide-react";
 
 interface EngineCanvasProps {
   selectedPartId: PartId | null;
@@ -15,6 +23,10 @@ interface EngineCanvasProps {
   onToggleMultiSelectPart?: (partId: PartId) => void;
   theme?: "dark" | "light";
   isModalOpen?: boolean;
+  activeMode?: "explore" | "incident" | "caselog" | "evaluation" | "preventive";
+  exploreSubView?: "3d" | "specs";
+  onSelectMode?: (mode: "explore" | "incident") => void;
+  onSelectExploreSubView?: (view: "3d" | "specs") => void;
 }
 
 // Color palettes for statuses
@@ -713,6 +725,10 @@ export function EngineCanvas({
   onToggleMultiSelectPart,
   theme = "dark",
   isModalOpen = false,
+  activeMode = "explore",
+  exploreSubView = "3d",
+  onSelectMode,
+  onSelectExploreSubView,
 }: EngineCanvasProps) {
   const [isExploded, setIsExploded] = useState(false);
   const [showLabels, setShowLabels] = useState(true);
@@ -770,12 +786,12 @@ export function EngineCanvas({
         />
       </Canvas>
 
-      {/* Floating Canvas Toolbar */}
-      <div className="absolute top-3 left-3 z-10 flex flex-wrap items-center gap-1.5 bg-slate-900/80 backdrop-blur-md p-1.5 rounded-lg border border-slate-800 shadow-xl">
+      {/* Floating Canvas Toolbar (with spatial inspection tools & mode navigation) */}
+      <div className="absolute top-3 left-3 z-10 flex flex-wrap items-center gap-1.5 bg-slate-900/85 backdrop-blur-md p-1.5 rounded-xl border border-slate-800 shadow-2xl">
         <button
           id="btn-reset-view"
           onClick={handleResetView}
-          className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 rounded transition"
+          className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 rounded-lg transition"
           title="Reset Camera View"
         >
           <RotateCcw className="w-3.5 h-3.5 text-sky-400" />
@@ -785,7 +801,7 @@ export function EngineCanvas({
         <button
           id="btn-toggle-labels"
           onClick={() => setShowLabels(!showLabels)}
-          className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded transition ${
+          className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg transition ${
             showLabels
               ? "bg-sky-500/20 text-sky-300 border border-sky-500/40"
               : "text-slate-400 hover:text-slate-200 bg-slate-800/60"
@@ -799,7 +815,7 @@ export function EngineCanvas({
         <button
           id="btn-toggle-exploded"
           onClick={() => setIsExploded(!isExploded)}
-          className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded transition ${
+          className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg transition ${
             isExploded
               ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
               : "text-slate-400 hover:text-slate-200 bg-slate-800/60"
@@ -808,6 +824,58 @@ export function EngineCanvas({
         >
           {isExploded ? <Minimize2 className="w-3.5 h-3.5 text-amber-400" /> : <Maximize2 className="w-3.5 h-3.5 text-slate-400" />}
           <span>{isExploded ? "Assemble" : "Exploded"}</span>
+        </button>
+
+        {/* Vertical divider */}
+        <div className="h-4 w-px bg-slate-700/80 mx-1 hidden sm:block" />
+
+        {/* 3 View Mode Navigation Buttons moved from bottom footer */}
+        <button
+          id="tab-mode-explore-3d"
+          onClick={() => {
+            onSelectMode?.("explore");
+            onSelectExploreSubView?.("3d");
+          }}
+          className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg transition font-medium ${
+            activeMode === "explore" && exploreSubView === "3d"
+              ? "bg-sky-500 text-white font-bold shadow-md shadow-sky-500/20"
+              : "text-slate-300 hover:text-white hover:bg-slate-800/80"
+          }`}
+          title="3D Engine Digital Twin Assembly"
+        >
+          <Cpu className="w-3.5 h-3.5 text-sky-300" />
+          <span>3D Assembly</span>
+        </button>
+
+        <button
+          id="tab-mode-specs-cutaway"
+          onClick={() => {
+            onSelectMode?.("explore");
+            onSelectExploreSubView?.("specs");
+          }}
+          className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg transition font-medium ${
+            activeMode === "explore" && exploreSubView === "specs"
+              ? "bg-sky-500 text-white font-bold shadow-md shadow-sky-500/20"
+              : "text-slate-300 hover:text-white hover:bg-slate-800/80"
+          }`}
+          title="Engineering Specs & GTF Cutaway Blueprint"
+        >
+          <Ruler className="w-3.5 h-3.5 text-sky-300" />
+          <span>Specs & Cutaway</span>
+        </button>
+
+        <button
+          id="tab-mode-incident"
+          onClick={() => onSelectMode?.("incident")}
+          className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg transition font-medium ${
+            activeMode === "incident"
+              ? "bg-sky-500 text-white font-bold shadow-md shadow-sky-500/20"
+              : "text-slate-300 hover:text-white hover:bg-slate-800/80"
+          }`}
+          title="AI-Assisted Incident Intake & Diagnosis"
+        >
+          <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+          <span>Incident Intake</span>
         </button>
       </div>
 

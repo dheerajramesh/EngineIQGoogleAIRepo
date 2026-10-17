@@ -1,6 +1,6 @@
 {
-  "summary": "Comprehensive implementation plan for UI decluttering, scrollable log boxes, icon-only back navigation, 3D label modal z-index clipping fix, subsystem dropdown responsiveness, and renaming to Predictive Maintenance.",
-  "updatedAt": "2026-10-17T10:04:37.946050871Z",
+  "summary": "Implementation plan for a prominent Defect & Required Fix Alert Banner in PartCard, displaying active defect summaries, governing AMM procedures, required maintenance actions, and cross-part alert navigation for affected red parts.",
+  "updatedAt": "2026-10-17T10:58:34.647744332Z",
   "requestFeedback": true,
   "userFacing": true
 }

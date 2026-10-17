@@ -385,10 +385,9 @@ export default function App() {
       // ignore
     }
 
-    // Reset 3D selection and statuses
-    setSelectedPartId("fan_blades");
-    setExploreSubView("3d");
-    setPartStatuses({
+    // Determine 3D part statuses and selection from active cases or engine status
+    const targetEng = engines.find((e) => e.id === engineId);
+    const newStatuses: Record<PartId, PartStatus> = {
       fan_case: "default",
       fan_blades: "default",
       fan_drive_gear: "default",
@@ -399,7 +398,27 @@ export default function App() {
       lpt: "default",
       exhaust: "default",
       oil_system: "default",
-    });
+    };
+    let initialSelectedPart: PartId = "fan_blades";
+
+    if (targetEng && targetEng.openCaseIds && targetEng.openCaseIds.length > 0) {
+      const engCases = caseLogs.filter((c) => targetEng.openCaseIds.includes(c.id));
+      for (const c of engCases) {
+        for (const f of c.findings) {
+          if (f.part !== "engine" && newStatuses[f.part as PartId] !== undefined) {
+            newStatuses[f.part as PartId] = c.overallLevel >= 3 ? "affected" : "inspect";
+            initialSelectedPart = f.part as PartId;
+          }
+        }
+      }
+    } else if (targetEng?.status === "action_required") {
+      newStatuses.oil_system = "affected";
+      initialSelectedPart = "oil_system";
+    }
+
+    setSelectedPartId(initialSelectedPart);
+    setExploreSubView("3d");
+    setPartStatuses(newStatuses);
 
     if (initialTab === "lifetracker") {
       setActiveMode("explore");
@@ -589,22 +608,15 @@ export default function App() {
     }
   };
 
+  const handleUpdatePartStatus = (partId: PartId, status: PartStatus) => {
+    setPartStatuses((prev) => ({
+      ...prev,
+      [partId]: status,
+    }));
+  };
+
   const handleModeChange = (mode: AppMode) => {
     setActiveMode(mode);
-    if (mode === "explore") {
-      setPartStatuses({
-        fan_case: "default",
-        fan_blades: "default",
-        fan_drive_gear: "default",
-        lpc: "default",
-        hpc: "default",
-        combustor: "default",
-        hpt: "default",
-        lpt: "default",
-        exhaust: "default",
-        oil_system: "default",
-      });
-    }
   };
 
   // If not logged in, render the Mock Login Screen
@@ -844,6 +856,18 @@ export default function App() {
 
         {/* Header Right Actions */}
         <div className="flex items-center gap-2">
+          {activeMode === "incident" && (
+            <button
+              onClick={() => {
+                setActiveMode("explore");
+                setExploreSubView("3d");
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-white text-xs font-semibold shadow-md transition font-mono"
+            >
+              <Cpu className="w-3.5 h-3.5 text-sky-200" />
+              <span>Return to 3D Assembly</span>
+            </button>
+          )}
 
           {/* Whiteboard / Dark HUD Toggle */}
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
@@ -966,6 +990,10 @@ export default function App() {
               selectedPartId={selectedPartId}
               onSelectPart={(partId) => {
                 setSelectedPartId(partId);
+                if (activeMode === "incident") {
+                  setActiveMode("explore");
+                  setExploreSubView("3d");
+                }
               }}
               partStatuses={partStatuses}
               allowMultiSelect={false}
@@ -973,6 +1001,13 @@ export default function App() {
               onToggleMultiSelectPart={handleToggleMultiSelect}
               theme={theme}
               isModalOpen={showAboutModal || !!activeDoc || isSearchModalOpen}
+              activeMode={activeMode}
+              exploreSubView={exploreSubView}
+              onSelectMode={(mode) => handleModeChange(mode)}
+              onSelectExploreSubView={(subView) => {
+                setActiveMode("explore");
+                setExploreSubView(subView);
+              }}
             />
           </div>
 
@@ -996,6 +1031,9 @@ export default function App() {
                 onOpenFullPreventiveSchedule={() => setActiveMode("preventive")}
                 activeSubTab={partCardSubTab}
                 onSubTabChange={(tab) => setPartCardSubTab(tab)}
+                partStatus={partStatuses[selectedPartId] || "default"}
+                allPartStatuses={partStatuses}
+                onUpdatePartStatus={handleUpdatePartStatus}
               />
             )}
 
@@ -1004,7 +1042,11 @@ export default function App() {
               onUpdate3DStatuses={(statuses) => setPartStatuses(statuses)}
               onOpenCitation={handleOpenCitation}
               onSaveCaseLog={handleSaveCaseLog}
-              onSelectPartIn3D={(id) => setSelectedPartId(id)}
+              onSelectPartIn3D={(id) => {
+                setSelectedPartId(id);
+                setActiveMode("explore");
+                setExploreSubView("3d");
+              }}
               defaultAircraftType={currentEngine.aircraftType || "A320-family, illustrative"}
               defaultEnginePosition={currentEngine.enginePosition}
               currentEngineId={currentEngine.id}
@@ -1034,66 +1076,6 @@ export default function App() {
         </div>
       </main>
     )}
-
-      {/* 4. Bottom Navigation Bar */}
-      <footer className="h-14 bg-slate-950/95 border-t border-slate-800 px-3 sm:px-4 flex items-center justify-between z-20 shrink-0 backdrop-blur-md">
-        {/* Navigation Tabs */}
-        <nav className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-1 text-xs font-mono">
-          <button
-            id="tab-mode-explore-3d"
-            onClick={() => {
-              setActiveMode("explore");
-              setExploreSubView("3d");
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition whitespace-nowrap ${
-              activeMode === "explore" && exploreSubView === "3d"
-                ? "bg-sky-500 text-white font-bold shadow"
-                : "text-slate-400 hover:text-white hover:bg-slate-900"
-            }`}
-            title="3D Engine Digital Twin"
-          >
-            <Cpu className="w-3.5 h-3.5 text-sky-300" />
-            <span>3D Assembly</span>
-          </button>
-
-          <button
-            id="tab-mode-specs-cutaway"
-            onClick={() => {
-              setActiveMode("explore");
-              setExploreSubView("specs");
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition whitespace-nowrap ${
-              activeMode === "explore" && exploreSubView === "specs"
-                ? "bg-sky-500 text-white font-bold shadow"
-                : "text-slate-400 hover:text-white hover:bg-slate-900"
-            }`}
-            title="Engineering Specs & GTF Cutaway Blueprint"
-          >
-            <Ruler className="w-3.5 h-3.5 text-sky-300" />
-            <span>Specs & Cutaway</span>
-          </button>
-
-          <button
-            id="tab-mode-incident"
-            onClick={() => handleModeChange("incident")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition whitespace-nowrap ${
-              activeMode === "incident"
-                ? "bg-sky-500 text-white font-semibold shadow"
-                : "text-slate-400 hover:text-white hover:bg-slate-900"
-            }`}
-            title="AI-Assisted Incident Intake & Diagnosis"
-          >
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-            <span>Incident Intake</span>
-          </button>
-        </nav>
-
-        {/* Status Indicator on right */}
-        <div className="hidden md:flex items-center gap-2 font-mono text-[11px] text-slate-400">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span>Telemetric Link Active</span>
-        </div>
-      </footer>
 
       {/* 5. Global Modals */}
       <CitationModal doc={activeDoc} onClose={() => setActiveDoc(null)} />
