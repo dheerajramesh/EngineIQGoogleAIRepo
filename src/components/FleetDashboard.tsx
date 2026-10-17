@@ -45,6 +45,7 @@ import {
   Activity,
   User,
   Radio,
+  Bot,
 } from "lucide-react";
 
 interface FleetDashboardProps {
@@ -65,6 +66,7 @@ interface FleetDashboardProps {
   onUpdateEngineerProfile?: (profile: MROEngineerProfile) => void;
   onAddEngineerProfile?: (profile: MROEngineerProfile) => void;
   onSwitchSessionProfile?: (profile: MROEngineerProfile) => void;
+  onOpenAICopilot?: (prompt?: string) => void;
 }
 
 export function FleetDashboard({
@@ -85,6 +87,7 @@ export function FleetDashboard({
   onUpdateEngineerProfile,
   onAddEngineerProfile,
   onSwitchSessionProfile,
+  onOpenAICopilot,
 }: FleetDashboardProps) {
   // Selected flight for detailed flight status view
   const [selectedFlightNumber, setSelectedFlightNumber] = useState<string | null>(initialFlightNumber);
@@ -359,6 +362,7 @@ export function FleetDashboard({
           onToggleTheme={onToggleTheme}
           crsRecord={crsRecords[flight.flightNumber]}
           onIssueFlightCRS={onIssueFlightCRS}
+          onOpenAICopilot={onOpenAICopilot}
         />
       </div>
     );
@@ -474,6 +478,20 @@ export function FleetDashboard({
             <span className="sm:hidden">RBAC</span>
           </button>
 
+          {/* Unified Multi-Turn AI Copilot Drawer Trigger */}
+          {onOpenAICopilot && (
+            <button
+              id="btn-open-ai-copilot-dashboard"
+              onClick={() => onOpenAICopilot()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-white text-xs font-mono font-bold transition cursor-pointer shadow-sm whitespace-nowrap"
+              title="Open Multi-Turn AI Copilot for Live Fleet, AMM & Regulatory Q&A"
+            >
+              <Bot className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Ask AI Copilot</span>
+              <span className="sm:hidden">AI Q&A</span>
+            </button>
+          )}
+
           {/* Live AD & OEM Search Grounding Button (Google Search Grounding) */}
           <button
             id="btn-open-search-grounding"
@@ -485,8 +503,8 @@ export function FleetDashboard({
             title="Search live FAA/EASA Airworthiness Directives and OEM Service Bulletins with Google Search Grounding"
           >
             <Globe className="w-3.5 h-3.5 text-sky-400 animate-pulse" />
-            <span className="hidden sm:inline">Live AD Search</span>
-            <span className="sm:hidden">ADs</span>
+            <span className="hidden lg:inline">Live AD Search</span>
+            <span className="lg:hidden">ADs</span>
           </button>
 
           {/* Simulate New Incident Button */}

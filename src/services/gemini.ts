@@ -1,15 +1,37 @@
 import { ExtractedIncident, IncidentFinding, IncidentMeasurementInput, LimitsCheckResultRow, ActionLevel, DocSnippet, EnginePartData } from "../types";
 import { DUMMY_SCENARIOS } from "../data/scenarios";
 
+export type AIProviderPreference = "auto" | "gemini" | "groq";
+
+export interface AIHealthStatus {
+  hasApiKey: boolean;
+  hasGeminiKey: boolean;
+  hasGroqKey: boolean;
+  hasAnyLiveKey: boolean;
+  activeProviders: string[];
+  models?: {
+    gemini: string[];
+    groq: string[];
+  };
+}
+
 export interface GeminiExtractResponse {
   data: ExtractedIncident;
   isOfflineSample: boolean;
+  provider?: "gemini" | "groq" | "offline";
+  modelUsed?: string;
+  latencyMs?: number;
+  liveError?: boolean;
   notes?: string;
 }
 
 export interface GeminiExplainResponse {
   text: string;
   isOfflineSample: boolean;
+  provider?: "gemini" | "groq" | "offline";
+  modelUsed?: string;
+  latencyMs?: number;
+  liveError?: boolean;
 }
 
 export interface GeminiPartAskResponse {
@@ -17,13 +39,21 @@ export interface GeminiPartAskResponse {
   sources?: GroundedSource[];
   searchQueries?: string[];
   isOfflineSample: boolean;
-  errorType?: "CREDITS_DEPLETED" | "NO_API_KEY" | "NETWORK_ERROR";
+  provider?: "gemini" | "groq" | "offline";
+  modelUsed?: string;
+  latencyMs?: number;
+  liveError?: boolean;
+  attemptErrors?: string[];
+  errorType?: "CREDITS_DEPLETED" | "NO_API_KEYS_CONFIGURED" | "LIVE_PROVIDERS_FAILED" | "NETWORK_ERROR";
   errorMessage?: string;
 }
 
 export interface GeminiTrainingResponse {
   text: string;
   isOfflineSample: boolean;
+  provider?: "gemini" | "groq" | "offline";
+  modelUsed?: string;
+  latencyMs?: number;
 }
 
 export interface GroundedSource {
@@ -36,12 +66,86 @@ export interface GeminiSearchGroundingResponse {
   sources: GroundedSource[];
   searchQueries: string[];
   isOfflineSample: boolean;
+  provider?: "gemini" | "groq" | "offline";
+  modelUsed?: string;
+  latencyMs?: number;
+  liveError?: boolean;
+  errorMessage?: string;
+  attemptErrors?: string[];
+}
+
+export interface CopilotSuggestedAction {
+  label: string;
+  type: "open_engine" | "open_part" | "open_flight" | "open_incident" | "open_citation";
+  engineId?: string;
+  partId?: string;
+  flightNumber?: string;
+  docId?: string;
+}
+
+export interface CopilotChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+  contextLabel?: string;
+  sources?: GroundedSource[];
+  searchQueries?: string[];
+  suggestedActions?: CopilotSuggestedAction[];
+  isOfflineSample?: boolean;
+  provider?: "gemini" | "groq" | "offline";
+  modelUsed?: string;
+  latencyMs?: number;
+  liveError?: boolean;
+  errorMessage?: string;
+  attemptErrors?: string[];
+  retryPrompt?: string;
+}
+
+export interface CopilotFleetSnapshot {
+  flights: {
+    flightNumber: string;
+    aircraftTail: string;
+    aircraftType: string;
+    origin: string;
+    destination: string;
+    gate: string;
+    flightStatus: string;
+    statusLabel: string;
+    crewReportSummary: string;
+    crsSigned: boolean;
+    crsRef?: string;
+    engine1Id: string;
+    engine1Status: string;
+    engine1CSN: number;
+    engine2Id: string;
+    engine2Status: string;
+    engine2CSN: number;
+  }[];
+  openCases: {
+    id: string;
+    engineId: string;
+    tailNumber: string;
+    enginePosition: string;
+    eventType: string;
+    overallLevel: number;
+    summary: string;
+    partsAffected: string[];
+  }[];
+  roster: {
+    name: string;
+    role: string;
+    badge: string;
+    homeBase: string;
+    assignedFlightNumbers: string[];
+    assignedTailNumbers: string[];
+  }[];
 }
 
 /**
  * Robust timeout fetch helper
  */
-async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 12000): Promise<Response> {
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 15000): Promise<Response> {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -55,12 +159,40 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 1
 }
 
 /**
+ * Fetch server AI provider key availability (/api/health)
+ */
+export async function fetchAIHealthStatus(): Promise<AIHealthStatus> {
+  try {
+    const res = await fetchWithTimeout("/api/health", { method: "GET" }, 5000);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    return {
+      hasApiKey: Boolean(json.hasApiKey),
+      hasGeminiKey: Boolean(json.hasGeminiKey),
+      hasGroqKey: Boolean(json.hasGroqKey),
+      hasAnyLiveKey: Boolean(json.hasAnyLiveKey),
+      activeProviders: Array.isArray(json.activeProviders) ? json.activeProviders : [],
+      models: json.models,
+    };
+  } catch {
+    return {
+      hasApiKey: false,
+      hasGeminiKey: false,
+      hasGroqKey: false,
+      hasAnyLiveKey: false,
+      activeProviders: [],
+    };
+  }
+}
+
+/**
  * 1. EXTRACTOR: Extracts structured incident fields
  */
 export async function extractIncidentData(
   narrative: string,
   measurements: IncidentMeasurementInput,
-  image?: { base64: string; mimeType: string }
+  image?: { base64: string; mimeType: string },
+  preferredProvider: AIProviderPreference = "auto"
 ): Promise<GeminiExtractResponse> {
   try {
     const res = await fetchWithTimeout("/api/gemini/extract", {
@@ -71,8 +203,9 @@ export async function extractIncidentData(
         measurements,
         imageBase64: image?.base64,
         imageMimeType: image?.mimeType,
+        preferredProvider,
       }),
-    });
+    }, 20000);
 
     if (!res.ok) {
       throw new Error(`Server returned ${res.status}`);
@@ -83,15 +216,34 @@ export async function extractIncidentData(
       return {
         data: json.data,
         isOfflineSample: Boolean(json.isOfflineSample),
+        provider: json.provider || "gemini",
+        modelUsed: json.modelUsed,
+        latencyMs: json.latencyMs,
       };
     }
-    throw new Error("Invalid format from extractor");
-  } catch (err) {
-    console.warn("Using offline sample for extraction due to error/timeout:", err);
+
+    if (json.errorType === "NO_API_KEYS_CONFIGURED") {
+      return {
+        data: getOfflineExtractionFallback(narrative, measurements, Boolean(image)),
+        isOfflineSample: true,
+        provider: "offline",
+        notes: "Neither GEMINI_API_KEY nor GROQ_API_KEY configured. Loaded offline synthesizer extraction.",
+      };
+    }
+
     return {
       data: getOfflineExtractionFallback(narrative, measurements, Boolean(image)),
       isOfflineSample: true,
-      notes: "Server/API offline. Loaded deterministic pre-compiled sample extraction.",
+      liveError: true,
+      notes: json.message || "Live AI extraction failed across configured providers.",
+    };
+  } catch (err: any) {
+    console.warn("Extraction error:", err);
+    return {
+      data: getOfflineExtractionFallback(narrative, measurements, Boolean(image)),
+      isOfflineSample: true,
+      liveError: true,
+      notes: err?.message || "Server unreachable.",
     };
   }
 }
@@ -105,22 +257,40 @@ export async function generateIncidentExplanation(params: {
   findings: IncidentFinding[];
   rulesResults: LimitsCheckResultRow[];
   snippets: DocSnippet[];
+  preferredProvider?: AIProviderPreference;
 }): Promise<GeminiExplainResponse> {
   try {
     const res = await fetchWithTimeout("/api/gemini/explain", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(params),
-    });
+    }, 20000);
 
     if (!res.ok) throw new Error(`Server returned ${res.status}`);
     const json = await res.json();
     if (json.text) {
-      return { text: json.text, isOfflineSample: Boolean(json.isOfflineSample) };
+      return {
+        text: json.text,
+        isOfflineSample: Boolean(json.isOfflineSample),
+        provider: json.provider || "gemini",
+        modelUsed: json.modelUsed,
+        latencyMs: json.latencyMs,
+      };
     }
-    throw new Error("No text in explanation response");
+    if (json.errorType === "NO_API_KEYS_CONFIGURED") {
+      return {
+        text: getOfflineExplanationFallback(params),
+        isOfflineSample: true,
+        provider: "offline",
+      };
+    }
+    return {
+      text: `Live AI Provider Error: ${json.message || "All configured live providers failed."}\n\n---\n${getOfflineExplanationFallback(params)}`,
+      isOfflineSample: false,
+      liveError: true,
+    };
   } catch (err) {
-    console.warn("Using offline sample for explanation:", err);
+    console.warn("Explanation error:", err);
     return {
       text: getOfflineExplanationFallback(params),
       isOfflineSample: true,
@@ -129,31 +299,55 @@ export async function generateIncidentExplanation(params: {
 }
 
 /**
- * 3. PART ASSISTANT: Q&A on specific part
+ * 3. PART ASSISTANT: Q&A on specific part (Google Gemini Free Tier + Groq Failover)
+ * Only uses offline synthesizer if BOTH Gemini and Groq keys are missing.
  */
 export async function askAboutPart(
   partData: EnginePartData,
   question: string,
-  snippets: DocSnippet[]
+  snippets: DocSnippet[],
+  preferredProvider: AIProviderPreference = "auto"
 ): Promise<GeminiPartAskResponse> {
   try {
-    const res = await fetchWithTimeout("/api/gemini/part-ask", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ partData, question, snippets }),
-    });
+    const res = await fetchWithTimeout(
+      "/api/gemini/part-ask",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ partData, question, snippets, preferredProvider }),
+      },
+      22000
+    );
 
     const json = await res.json().catch(() => null);
 
-    if (json?.errorType === "CREDITS_DEPLETED") {
+    // Only use offline synthesizer if BOTH Gemini and Groq keys are missing
+    if (json?.errorType === "NO_API_KEYS_CONFIGURED") {
       const fallback = getOfflinePartAskFallback(partData, question, snippets);
       return {
         text: fallback.text,
         sources: fallback.sources,
         searchQueries: fallback.searchQueries,
         isOfflineSample: true,
-        errorType: "CREDITS_DEPLETED",
+        provider: "offline",
+        errorType: "NO_API_KEYS_CONFIGURED",
         errorMessage: json.message,
+      };
+    }
+
+    // If keys exist on server, but all live attempts failed, surface clear live error instead of silent canned data
+    if (json?.liveError || json?.errorType === "LIVE_PROVIDERS_FAILED") {
+      return {
+        text: "",
+        sources: [],
+        searchQueries: [],
+        isOfflineSample: false,
+        liveError: true,
+        attemptErrors: json.attemptErrors || [],
+        errorType: "LIVE_PROVIDERS_FAILED",
+        errorMessage:
+          json.message ||
+          "All live AI providers failed. Add a free GROQ_API_KEY or GEMINI_API_KEY in Settings > Secrets.",
       };
     }
 
@@ -164,19 +358,21 @@ export async function askAboutPart(
         sources: json.sources || [],
         searchQueries: json.searchQueries || [],
         isOfflineSample: Boolean(json.isOfflineSample),
+        provider: json.provider || "gemini",
+        modelUsed: json.modelUsed,
+        latencyMs: json.latencyMs,
       };
     }
     throw new Error("No text in part Q&A response");
   } catch (err: any) {
-    console.warn("Using offline knowledge engine for part Q&A:", err);
-    const fallback = getOfflinePartAskFallback(partData, question, snippets);
     return {
-      text: fallback.text,
-      sources: fallback.sources,
-      searchQueries: fallback.searchQueries,
-      isOfflineSample: true,
+      text: "",
+      sources: [],
+      searchQueries: [],
+      isOfflineSample: false,
+      liveError: true,
       errorType: "NETWORK_ERROR",
-      errorMessage: err.message || "Failed to reach backend",
+      errorMessage: err.message || "Failed to reach live AI backend",
     };
   }
 }
@@ -190,22 +386,32 @@ export async function getTrainingFeedback(params: {
   traineeLevel: number;
   traineeReasoning: string;
   score: any;
+  preferredProvider?: AIProviderPreference;
 }): Promise<GeminiTrainingResponse> {
   try {
     const res = await fetchWithTimeout("/api/gemini/training-feedback", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(params),
-    });
+    }, 20000);
 
     if (!res.ok) throw new Error(`Server returned ${res.status}`);
     const json = await res.json();
     if (json.text) {
-      return { text: json.text, isOfflineSample: Boolean(json.isOfflineSample) };
+      return {
+        text: json.text,
+        isOfflineSample: Boolean(json.isOfflineSample),
+        provider: json.provider || "gemini",
+        modelUsed: json.modelUsed,
+        latencyMs: json.latencyMs,
+      };
     }
-    throw new Error("No text in training feedback response");
+    return {
+      text: getOfflineTrainingFeedbackFallback(params),
+      isOfflineSample: true,
+    };
   } catch (err) {
-    console.warn("Using offline sample for training feedback:", err);
+    console.warn("Training feedback error:", err);
     return {
       text: getOfflineTrainingFeedbackFallback(params),
       isOfflineSample: true,
@@ -214,33 +420,165 @@ export async function getTrainingFeedback(params: {
 }
 
 /**
- * 5. SEARCH GROUNDING: Query up-to-date FAA/EASA ADs and OEM SBs via Google Search (gemini-3.8-flash)
+ * 5. SEARCH GROUNDING: Query up-to-date FAA/EASA ADs and OEM SBs (Gemini Free Tier + Groq Failover)
  */
 export async function searchGroundedIntel(
   query: string,
-  context?: any
+  context?: any,
+  preferredProvider: AIProviderPreference = "auto"
 ): Promise<GeminiSearchGroundingResponse> {
   try {
-    const res = await fetchWithTimeout("/api/gemini/search-grounded-intel", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query, context }),
-    }, 20000); // 20s timeout for search grounding
+    const res = await fetchWithTimeout(
+      "/api/gemini/search-grounded-intel",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, context, preferredProvider }),
+      },
+      22000
+    );
 
     if (!res.ok) throw new Error(`Server returned ${res.status}`);
     const json = await res.json();
-    if (json.errorType === "CREDITS_DEPLETED" || !json.text) {
+
+    if (json.errorType === "NO_API_KEYS_CONFIGURED") {
       return getOfflineSearchGroundingFallback(query);
     }
+
+    if (json.liveError || json.errorType === "LIVE_PROVIDERS_FAILED") {
+      return {
+        text: "",
+        sources: [],
+        searchQueries: [],
+        isOfflineSample: false,
+        liveError: true,
+        errorMessage: json.message,
+        attemptErrors: json.attemptErrors || [],
+      };
+    }
+
     return {
       text: json.text,
       sources: json.sources || [],
       searchQueries: json.searchQueries || [],
       isOfflineSample: Boolean(json.isOfflineSample),
+      provider: json.provider || "gemini",
+      modelUsed: json.modelUsed,
+      latencyMs: json.latencyMs,
     };
-  } catch (err) {
-    console.warn("Using offline sample for search grounding:", err);
-    return getOfflineSearchGroundingFallback(query);
+  } catch (err: any) {
+    return {
+      text: "",
+      sources: [],
+      searchQueries: [],
+      isOfflineSample: false,
+      liveError: true,
+      errorMessage: err?.message || "Failed to reach live AI backend.",
+    };
+  }
+}
+
+/**
+ * 6. UNIFIED MULTI-TURN AI COPILOT CHAT:
+ * Combines live fleet/flight telemetry, AMM manuals, RBAC roster, and Multi-Provider Live AI (Gemini Free Tier + Groq)
+ * Enforces strict policy: Only uses offline synthesizer if BOTH Gemini and Groq keys are missing.
+ */
+export async function askCopilotChat(params: {
+  message: string;
+  history: { role: "user" | "assistant"; content: string }[];
+  fleetSnapshot: CopilotFleetSnapshot;
+  activeContext: {
+    scope: "fleet" | "flight" | "engine" | "part";
+    label: string;
+    flightNumber?: string;
+    tailNumber?: string;
+    engineId?: string;
+    partId?: string;
+    partName?: string;
+    userRole?: string;
+    userName?: string;
+  };
+  snippets: DocSnippet[];
+  preferredProvider?: AIProviderPreference;
+}): Promise<{
+  text: string;
+  sources: GroundedSource[];
+  searchQueries: string[];
+  suggestedActions: CopilotSuggestedAction[];
+  isOfflineSample: boolean;
+  provider?: "gemini" | "groq" | "offline";
+  modelUsed?: string;
+  latencyMs?: number;
+  liveError?: boolean;
+  errorMessage?: string;
+  attemptErrors?: string[];
+}> {
+  try {
+    const res = await fetchWithTimeout(
+      "/api/gemini/copilot-chat",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(params),
+      },
+      25000
+    );
+
+    if (!res.ok) throw new Error(`Server returned ${res.status}`);
+    const json = await res.json();
+
+    // Confirmed Decision 2: Only use offline synthesizer if BOTH Gemini and Groq keys are missing
+    if (json.errorType === "NO_API_KEYS_CONFIGURED") {
+      const offline = getOfflineCopilotChatFallback(params);
+      return {
+        ...offline,
+        provider: "offline",
+        modelUsed: "Offline Synthesizer (No API Keys Set)",
+      };
+    }
+
+    // If a key is configured but all live providers failed, return explicit liveError instead of canned data
+    if (json.liveError || json.errorType === "LIVE_PROVIDERS_FAILED" || !json.text) {
+      return {
+        text: "",
+        sources: [],
+        searchQueries: [],
+        suggestedActions: [],
+        isOfflineSample: false,
+        liveError: true,
+        errorMessage:
+          json.message ||
+          "All live AI providers failed. Please configure a free GROQ_API_KEY or GEMINI_API_KEY in Settings > Secrets.",
+        attemptErrors: json.attemptErrors || [],
+      };
+    }
+
+    const suggestedActions = deriveSuggestedActionsFromAnswer(
+      params.message + " " + json.text,
+      params.fleetSnapshot,
+      params.activeContext
+    );
+
+    return {
+      text: json.text,
+      sources: json.sources || [],
+      searchQueries: json.searchQueries || [],
+      suggestedActions,
+      isOfflineSample: Boolean(json.isOfflineSample),
+      provider: json.provider || "gemini",
+      modelUsed: json.modelUsed,
+      latencyMs: json.latencyMs,
+    };
+  } catch (err: any) {
+    return {
+      text: "",
+      sources: [],
+      searchQueries: [],
+      suggestedActions: [],
+      isOfflineSample: false,
+      liveError: true,
+      errorMessage: err?.message || "Network error while contacting live AI backend.",
+    };
   }
 }
 
@@ -726,3 +1064,352 @@ function getOfflineTrainingFeedbackFallback(params: {
   feedback += `\n\nExpected Reasoning:\n${params.scenario.expectedReasoning}\n\nApplicable Manual References: [${docs}]. Certifying engineer sign-off required.`;
   return feedback;
 }
+
+/**
+ * Derives 1-click navigation action buttons from the question/answer and live fleet snapshot
+ */
+export function deriveSuggestedActionsFromAnswer(
+  combinedText: string,
+  fleetSnapshot: CopilotFleetSnapshot,
+  activeContext: {
+    flightNumber?: string;
+    engineId?: string;
+    partId?: string;
+  }
+): CopilotSuggestedAction[] {
+  const actions: CopilotSuggestedAction[] = [];
+  const lower = combinedText.toLowerCase();
+
+  // Check for specific flights or tails mentioned
+  for (const f of fleetSnapshot.flights) {
+    if (
+      lower.includes(f.flightNumber.toLowerCase()) ||
+      lower.includes(f.aircraftTail.toLowerCase())
+    ) {
+      actions.push({
+        label: `View Flight ${f.flightNumber} (${f.aircraftTail})`,
+        type: "open_flight",
+        flightNumber: f.flightNumber,
+      });
+      const actionEngineId =
+        f.engine1Status === "action_required"
+          ? f.engine1Id
+          : f.engine2Status === "action_required"
+          ? f.engine2Id
+          : f.engine1Id;
+      actions.push({
+        label: `Inspect ${f.aircraftTail} in 3D Twin (${actionEngineId})`,
+        type: "open_engine",
+        engineId: actionEngineId,
+      });
+      break;
+    }
+  }
+
+  // Check for specific components mentioned
+  const partMap: { id: string; label: string; keywords: string[] }[] = [
+    { id: "fan_blades", label: "Fan Blades", keywords: ["fan blade", "boroblend", "leading edge nick", "bird strike"] },
+    { id: "hpt", label: "High-Pressure Turbine (HPT)", keywords: ["hpt", "high-pressure turbine", "high pressure turbine", "thermal barrier"] },
+    { id: "hpc", label: "High-Pressure Compressor (HPC)", keywords: ["hpc", "powder metal", "compressor"] },
+    { id: "combustor", label: "Combustor Assembly", keywords: ["combustor", "burner", "hot section"] },
+    { id: "oil_system", label: "Lubrication & Scavenge System", keywords: ["oil", "b-nut", "scavenge", "mcd", "chip detector"] },
+    { id: "fan_drive_gear", label: "Fan Drive Gear System (FDGS)", keywords: ["fdgs", "gearbox", "vibration", "planetary"] },
+  ];
+
+  for (const pm of partMap) {
+    if (pm.keywords.some((kw) => lower.includes(kw))) {
+      actions.push({
+        label: `Select ${pm.label} in 3D`,
+        type: "open_part",
+        partId: pm.id,
+        engineId: activeContext.engineId || fleetSnapshot.flights[0]?.engine1Id || "ik-eng-01",
+      });
+      break;
+    }
+  }
+
+  // Check for AMM citation IDs
+  const citationMatches = combinedText.match(/\[(DEMO-[A-Z0-9-]+)\]/g);
+  if (citationMatches && citationMatches.length > 0) {
+    const firstDoc = citationMatches[0].replace("[", "").replace("]", "");
+    actions.push({
+      label: `Read Manual ${firstDoc}`,
+      type: "open_citation",
+      docId: firstDoc,
+    });
+  }
+
+  return actions.slice(0, 3);
+}
+
+/**
+ * Dynamic Live-State Fleet, AMM & Regulatory Synthesizer for Multi-Turn Copilot Chat
+ */
+function getOfflineCopilotChatFallback(params: {
+  message: string;
+  history: { role: "user" | "assistant"; content: string }[];
+  fleetSnapshot: CopilotFleetSnapshot;
+  activeContext: {
+    scope: "fleet" | "flight" | "engine" | "part";
+    label: string;
+    flightNumber?: string;
+    tailNumber?: string;
+    engineId?: string;
+    partId?: string;
+    partName?: string;
+    userRole?: string;
+    userName?: string;
+  };
+  snippets: DocSnippet[];
+}): {
+  text: string;
+  sources: GroundedSource[];
+  searchQueries: string[];
+  suggestedActions: CopilotSuggestedAction[];
+  isOfflineSample: boolean;
+} {
+  const q = (params.message || "").toLowerCase();
+  const { fleetSnapshot, activeContext } = params;
+  const flights = fleetSnapshot.flights || [];
+  const openCases = fleetSnapshot.openCases || [];
+  const roster = fleetSnapshot.roster || [];
+
+  const aogFlights = flights.filter((f) => f.flightStatus === "action_required");
+  const watchFlights = flights.filter((f) => f.flightStatus === "watch");
+  const readyFlights = flights.filter((f) => f.flightStatus === "ready");
+  const crsSignedFlights = flights.filter((f) => f.crsSigned);
+
+  // Check if a specific flight or tail number is referenced in the query or active context
+  const matchedFlight =
+    flights.find(
+      (f) =>
+        q.includes(f.flightNumber.toLowerCase()) ||
+        q.includes(f.aircraftTail.toLowerCase()) ||
+        q.includes(f.engine1Id.toLowerCase()) ||
+        q.includes(f.engine2Id.toLowerCase())
+    ) ||
+    (activeContext.flightNumber
+      ? flights.find((f) => f.flightNumber === activeContext.flightNumber)
+      : undefined);
+
+  let text = "";
+  let searchQueries: string[] = [
+    `IndiGo PW1100G-JM MRO ${params.message.slice(0, 48)}`,
+    "Pratt & Whitney PW1100G-JM AMM Chapter 72 & 79 limits",
+  ];
+  const sources: GroundedSource[] = [
+    {
+      title: "FAA DRS Type Certificate Data Sheet (TCDS E00087EN) - PW1100G-JM",
+      url: "https://drs.faa.gov/currentDoc/TCDS-E00087EN",
+    },
+    {
+      title: "EASA Safety Publications - PW1100G-JM Airworthiness Directives",
+      url: "https://ad.easa.europa.eu/",
+    },
+  ];
+
+  // 1. Specific Flight / Aircraft Tail Question
+  if (
+    matchedFlight &&
+    (q.includes(matchedFlight.flightNumber.toLowerCase()) ||
+      q.includes(matchedFlight.aircraftTail.toLowerCase()) ||
+      q.includes("this flight") ||
+      q.includes("why is") ||
+      q.includes("status") ||
+      q.includes("dispatch") ||
+      q.includes("crs"))
+  ) {
+    const flightCases = openCases.filter(
+      (c) => c.engineId === matchedFlight.engine1Id || c.engineId === matchedFlight.engine2Id
+    );
+    const assignedEngineers = roster.filter(
+      (r) =>
+        r.role === "Engineer" &&
+        (r.assignedFlightNumbers.includes(matchedFlight.flightNumber) ||
+          r.assignedTailNumbers.includes(matchedFlight.aircraftTail))
+    );
+
+    const caseDetails =
+      flightCases.length > 0
+        ? flightCases
+            .map(
+              (c) =>
+                `  • **${c.enginePosition} (${c.engineId}) — Case ${c.id} (Level L${c.overallLevel}):** ${c.summary} (Affected Modules: ${c.partsAffected.join(", ")})`
+            )
+            .join("\n")
+        : "  • Zero unrectified Red/Amber findings logged on either propulsion unit.";
+
+    const assignedStr =
+      assignedEngineers.length > 0
+        ? assignedEngineers.map((e) => `${e.name} (${e.badge})`).join(", ")
+        : "Unassigned (Supervisor can assign via RBAC Console)";
+
+    text = `### Live Turnaround & Propulsion Diagnostic: Flight ${matchedFlight.flightNumber} (${matchedFlight.aircraftTail})
+
+• **Route & Gate:** ${matchedFlight.origin} → ${matchedFlight.destination} · Gate ${matchedFlight.gate} · ${matchedFlight.aircraftType}
+• **Current Dispatch Status:** **${matchedFlight.statusLabel}** (${matchedFlight.flightStatus.toUpperCase()})
+• **Twin-Engine Telemetry:**
+  - **No.1 Engine (${matchedFlight.engine1Id}):** Status \`${matchedFlight.engine1Status.toUpperCase()}\` · ${matchedFlight.engine1CSN.toLocaleString()} CSN (${(10000 - matchedFlight.engine1CSN).toLocaleString()} cycles to LLP limit)
+  - **No.2 Engine (${matchedFlight.engine2Id}):** Status \`${matchedFlight.engine2Status.toUpperCase()}\` · ${matchedFlight.engine2CSN.toLocaleString()} CSN (${(10000 - matchedFlight.engine2CSN).toLocaleString()} cycles to LLP limit)
+• **Flight Crew Tech-Log Entry:** "${matchedFlight.crewReportSummary}"
+• **Active Open Maintenance Cases:**
+${caseDetails}
+• **CAR-145 Assigned Certifying Engineer(s):** ${assignedStr}
+• **CRS Dispatch Certificate:** ${
+      matchedFlight.crsSigned
+        ? `SIGNED & RELEASED (${matchedFlight.crsRef})`
+        : matchedFlight.flightStatus === "action_required"
+        ? "LOCKED — Mandatory rectification of Level 3/4 Red-Light findings required before CRS sign-off [DEMO-POL-01]."
+        : "READY FOR SIGN-OFF — Open Flight Status view to issue DGCA CAR-145 CRS."
+    }
+
+Certifying engineer sign-off strictly required.`;
+  }
+
+  // 2. RBAC / Engineer Assignments / Who is assigned
+  else if (
+    q.includes("rbac") ||
+    q.includes("assign") ||
+    q.includes("who is") ||
+    q.includes("roster") ||
+    q.includes("supervisor") ||
+    q.includes("engineer")
+  ) {
+    const engineerRows = roster
+      .map(
+        (r) =>
+          `• **${r.name}** (\`${r.role}\` · ${r.badge} · Base: ${r.homeBase}):\n  - Assigned Flights: ${r.assignedFlightNumbers.join(", ") || "None"}\n  - Assigned Tails: ${r.assignedTailNumbers.join(", ") || "None"}`
+      )
+      .join("\n");
+
+    text = `### Live CAR-145 / Part-145 MRO Roster & Tail Assignments
+
+EngineIQ enforces 3-tier Role-Based Access Control benchmarked against **Swiss-AS AMOS** and **Airbus Skywise**:
+
+${engineerRows}
+
+• **Access Policy Summary:**
+  - **Fleet Supervisors:** Full read/write authority across all ${flights.length} flights and ${flights.length * 2} engines, plus live tail assignment controls.
+  - **Certifying Line Engineers:** Scoped to their assigned aircraft tails for recording field micrometer inputs, signing off component rectifications, and issuing Flight CRS releases [DEMO-POL-01].
+  - **Graduate Trainees:** Isolated sandbox container so training actions never impact live airline operations.
+
+Certifying engineer sign-off strictly required.`;
+  }
+
+  // 3. AMM Limits / Fan Blade / Nick / Dent / Blend / Repair Questions
+  else if (
+    q.includes("nick") ||
+    q.includes("dent") ||
+    q.includes("blend") ||
+    q.includes("fan blade") ||
+    q.includes("zone a") ||
+    q.includes("zone b") ||
+    q.includes("amm") ||
+    q.includes("limit") ||
+    q.includes("repair") ||
+    q.includes("troubleshoot")
+  ) {
+    text = `### PW1100G-JM AMM Damage Limits & On-Wing Troubleshooting Guide
+
+• **Fan Blade Leading-Edge Nick & Dent Limits [DEMO-AMM-72-01]:**
+  - **Level 1 (Serviceable / Record Only):** Depth **≤ 0.5 mm** in Zone A or Zone B with zero crack indication. Continue in service and log in digital airframe book.
+  - **Level 2 (Minor On-Wing Cold Blend):** Depth **> 0.5 mm to ≤ 1.5 mm** in Zone A (or **≤ 2.5 mm** in Zone B). Perform on-wing boroblend using a 4:1 smooth transition ratio per \`AMM Task 72-00-300\`, followed by eddy-current / FPI verification.
+  - **Level 3 / 4 (Unserviceable / AOG Grounding):** Any leading-edge nick **> 1.5 mm in Zone A**, **> 2.5 mm in Zone B**, tip curl **> 1.0 mm**, or **any crack of any length (> 0.0 mm)**. Mandatory blade replacement before flight [DEMO-AMM-72-01].
+
+• **Hot Section (Combustor & HPT Blade) Limits [DEMO-AMM-72-02]:**
+  - **HPT Airfoil Cracking:** Zero-tolerance (**0.0 mm**) for axial or radial cracks on single-crystal Stage 1/2 HPT blades. Requires Level 4 module replacement.
+  - **TBC Coating Loss:** Serviceable up to **≤ 3.0% area**; **3.0% to 8.0%** requires repeat borescope every 25 FH; **> 8.0%** requires shop visit [DEMO-AMM-72-02].
+
+• **Lubrication & Vibration Limits [DEMO-AMM-79-01] & [DEMO-FCOM-70-01]:**
+  - **Oil Scavenge / Seepage:** **≤ 2 drops/min** is serviceable; **3–5 drops/min** requires B-nut union re-torque & seal replacement (\`AMM Task 79-00-200\`) + 10-min ground leak run; **> 5 drops/min** or MCD ferrous fuzz grounds the aircraft.
+  - **Broadband Vibration:** **≤ 1.5 ips** normal; **1.5–2.8 ips** requires FDGS chip check & fan trim balance; **> 2.8 ips** grounds the aircraft [DEMO-FCOM-70-01].
+
+Certifying engineer sign-off strictly required.`;
+  }
+
+  // 4. LLP / Cycle Margins / Life Limited Parts
+  else if (q.includes("llp") || q.includes("cycle") || q.includes("csn") || q.includes("life") || q.includes("margin")) {
+    const allEngines = flights.flatMap((f) => [
+      { id: f.engine1Id, tail: f.aircraftTail, flight: f.flightNumber, pos: "No.1", csn: f.engine1CSN, status: f.engine1Status },
+      { id: f.engine2Id, tail: f.aircraftTail, flight: f.flightNumber, pos: "No.2", csn: f.engine2CSN, status: f.engine2Status },
+    ]);
+    const sortedByCycles = [...allEngines].sort((a, b) => b.csn - a.csn);
+    const topEngines = sortedByCycles
+      .slice(0, 5)
+      .map(
+        (e) =>
+          `  • **${e.tail} ${e.pos} (${e.id} · Flight ${e.flight}):** ${e.csn.toLocaleString()} CSN — **${(10000 - e.csn).toLocaleString()} cycles remaining** (${Math.round((e.csn / 10000) * 100)}% of 10,000-cycle HPT LLP limit)`
+      )
+      .join("\n");
+
+    text = `### Fleet Life-Limited Part (LLP) Cycle Margin Analysis
+
+• **Governing LLP Bottleneck:** High-Pressure Turbine (HPT) Stage 1 & 2 powder-metal rotor disks carry the most restrictive certified life limit of **10,000 Flight Cycles (CSN)** [DEMO-AMM-72-02].
+• **Highest-Time Engines Across IndiGo Fleet (${allEngines.length} Total Engines):**
+${topEngines}
+• **FAA AD 2024-0014 / EASA AD 2023-0211-E Compliance:** Repetitive angled-beam ultrasonic inspection (UT) is mandated every **250 to 500 cycles** on powder-metal HPC and HPT disks prior to reaching the 10,000-cycle hard retirement threshold.
+
+Certifying engineer sign-off strictly required.`;
+  }
+
+  // 5. Default / Live Fleet Overview & AOG Summary
+  else {
+    const aogList =
+      aogFlights.length > 0
+        ? aogFlights
+            .map((f) => {
+              const cases = openCases.filter(
+                (c) => c.engineId === f.engine1Id || c.engineId === f.engine2Id
+              );
+              const caseText =
+                cases.length > 0
+                  ? cases.map((c) => `${c.enginePosition}: ${c.summary} [L${c.overallLevel}]`).join("; ")
+                  : f.crewReportSummary;
+              return `  • **Flight ${f.flightNumber} (${f.aircraftTail} · ${f.origin}→${f.destination}):** ${caseText}`;
+            })
+            .join("\n")
+        : "  • Zero flights currently grounded (all Red-Light defects have been rectified!).";
+
+    const watchList =
+      watchFlights.length > 0
+        ? watchFlights
+            .map(
+              (f) =>
+                `  • **Flight ${f.flightNumber} (${f.aircraftTail} · ${f.origin}→${f.destination}):** ${f.statusLabel} — ${f.crewReportSummary}`
+            )
+            .join("\n")
+        : "  • Zero flights on Engineering Watch.";
+
+    text = `### Live IndiGo PW1100G-JM Fleet & Dispatch Status Summary
+
+• **Fleet Health Overview (${flights.length} Active Flights · ${flights.length * 2} Engines):**
+  - **AOG / Action Required (Red):** **${aogFlights.length}** flight(s)
+  - **Engineering Watch / Inspection (Amber):** **${watchFlights.length}** flight(s)
+  - **Ready for Dispatch (Green):** **${readyFlights.length}** flight(s) (**${crsSignedFlights.length}** with signed CAR-145 CRS certificates)
+
+• **Grounded / Action-Required Turnarounds (AOG):**
+${aogList}
+
+• **Engineering Watch Turnarounds (Amber):**
+${watchList}
+
+• **Recommended Next Step:** Select any flight or engine below to inspect its 3D Digital Twin, input post-repair micrometer readings, or complete the Mandatory Rectification Worksheet [DEMO-AMM-72-01] [DEMO-POL-01].
+
+Certifying engineer sign-off strictly required.`;
+  }
+
+  const suggestedActions = deriveSuggestedActionsFromAnswer(
+    params.message + " " + text,
+    fleetSnapshot,
+    activeContext
+  );
+
+  return {
+    text,
+    sources,
+    searchQueries,
+    suggestedActions,
+    isOfflineSample: true,
+  };
+}
+

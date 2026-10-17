@@ -172,6 +172,25 @@ service cloud.firestore {
         data.createdAt is timestamp;
     }
 
+    function isValidSystemAIConfigDoc(data) {
+      return data.keys().hasAll([
+          'configId', 'provider', 'encodedApiKey', 'primaryModel',
+          'visionModel', 'fallbackModel', 'updatedByEmail', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'configId', 'provider', 'encodedApiKey', 'primaryModel',
+          'visionModel', 'fallbackModel', 'updatedByEmail', 'updatedAt'
+        ]) &&
+        isValidId(data.configId) && data.configId.size() <= 64 &&
+        data.provider is string && data.provider == 'groq' &&
+        data.encodedApiKey is string && data.encodedApiKey.size() >= 10 && data.encodedApiKey.size() <= 512 &&
+        data.primaryModel is string && data.primaryModel.size() >= 1 && data.primaryModel.size() <= 100 &&
+        data.visionModel is string && data.visionModel.size() >= 1 && data.visionModel.size() <= 100 &&
+        data.fallbackModel is string && data.fallbackModel.size() >= 1 && data.fallbackModel.size() <= 100 &&
+        data.updatedByEmail is string && data.updatedByEmail.size() >= 3 && data.updatedByEmail.size() <= 160 &&
+        data.updatedAt is timestamp;
+    }
+
     // =========================================================================
     // Collection 1: /users/{userId} (Public RBAC & Tail Roster Profile - No PII)
     // =========================================================================
@@ -291,6 +310,31 @@ service cloud.firestore {
         incoming().logId == logId &&
         incoming().createdAt == request.time &&
         canAccessTail(incoming().tailNumber);
+    }
+
+    // =========================================================================
+    // Collection 5: /system_ai_config/{configId} (Platform-Managed AI Runtime Vault)
+    // =========================================================================
+    match /system_ai_config/{configId} {
+      allow get: if isSignedIn() && isValidId(configId);
+
+      allow create: if isVerifiedUser() &&
+        isBootstrappedSupervisor() &&
+        isValidId(configId) &&
+        isValidSystemAIConfigDoc(incoming()) &&
+        incoming().configId == configId &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser() &&
+        isBootstrappedSupervisor() &&
+        isValidId(configId) &&
+        isValidSystemAIConfigDoc(incoming()) &&
+        incoming().configId == existing().configId &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'encodedApiKey', 'primaryModel', 'visionModel', 'fallbackModel',
+          'updatedByEmail', 'updatedAt'
+        ]);
     }
   }
 }

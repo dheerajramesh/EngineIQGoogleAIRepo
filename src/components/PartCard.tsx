@@ -11,7 +11,7 @@ import {
   DamageType,
   MeasurementUnit,
 } from "../types";
-import { askAboutPart, GroundedSource } from "../services/gemini";
+import { AIProviderPreference, askAboutPart, GroundedSource } from "../services/gemini";
 import { retrieveRelevantDocuments } from "../logic/retrieval";
 import { evaluateLimitsCheck, formatDamageType, formatUnit } from "../logic/rulesEngine";
 import { ENGINE_PARTS } from "../data/parts";
@@ -71,6 +71,7 @@ interface PartCardProps {
   onUpdatePartStatus?: (partId: PartId, status: PartStatus) => void;
   openCases?: CaseLogEntry[];
   onSaveCaseLog?: (entry: CaseLogEntry) => void;
+  onOpenAICopilot?: (prompt?: string) => void;
 }
 
 const DEFAULT_PART_PARAMETER: Record<PartId, { damageType: DamageType; unit: MeasurementUnit; label: string; placeholder: string }> = {
@@ -108,6 +109,7 @@ export function PartCard({
   onUpdatePartStatus,
   openCases = [],
   onSaveCaseLog,
+  onOpenAICopilot,
 }: PartCardProps) {
   const [internalTab, setInternalTab] = useState<"specs" | "preventive" | "lifetracker" | "history">("specs");
   const cardTab = activeSubTab !== undefined ? activeSubTab : internalTab;
@@ -269,7 +271,19 @@ export function PartCard({
   const [sources, setSources] = useState<GroundedSource[]>([]);
   const [searchQueries, setSearchQueries] = useState<string[]>([]);
   const [isOfflineSample, setIsOfflineSample] = useState(false);
-  const [apiError, setApiError] = useState<{ type: string; message: string } | null>(null);
+  const [answerProvider, setAnswerProvider] = useState<string | undefined>(undefined);
+  const [answerModel, setAnswerModel] = useState<string | undefined>(undefined);
+  const [answerLatencyMs, setAnswerLatencyMs] = useState<number | undefined>(undefined);
+  const [preferredProvider, setPreferredProvider] = useState<AIProviderPreference>(() => {
+    const saved = localStorage.getItem("engineiq_preferred_ai_provider");
+    if (saved === "gemini" || saved === "groq" || saved === "auto") return saved;
+    return "auto";
+  });
+  const [apiError, setApiError] = useState<{
+    type: string;
+    message: string;
+    attemptErrors?: string[];
+  } | null>(null);
 
   // Scope and normalize history logs strictly to the current engine's identity & cycle count
   const scopedHistoryLogs = useMemo(() => {
@@ -345,21 +359,37 @@ export function PartCard({
     setSources([]);
     setSearchQueries([]);
     setApiError(null);
+    setAnswerProvider(undefined);
+    setAnswerModel(undefined);
+    setAnswerLatencyMs(undefined);
 
     try {
       const snippets = await retrieveRelevantDocuments({ partId: part.id, freeText: query }, 3);
-      const res = await askAboutPart(part, query, snippets);
-      setAnswer(res.text);
-      setSources(res.sources || []);
-      setSearchQueries(res.searchQueries || []);
-      setIsOfflineSample(res.isOfflineSample);
-      if (res.errorType) {
-        setApiError({ type: res.errorType, message: res.errorMessage || "" });
+      const res = await askAboutPart(part, query, snippets, preferredProvider);
+      if (res.liveError) {
+        setAnswer(null);
+        setIsOfflineSample(false);
+        setApiError({
+          type: res.errorType || "LIVE_PROVIDERS_FAILED",
+          message: res.errorMessage || "All live AI providers failed.",
+          attemptErrors: res.attemptErrors || [],
+        });
+      } else {
+        setAnswer(res.text);
+        setSources(res.sources || []);
+        setSearchQueries(res.searchQueries || []);
+        setIsOfflineSample(res.isOfflineSample);
+        setAnswerProvider(res.provider);
+        setAnswerModel(res.modelUsed);
+        setAnswerLatencyMs(res.latencyMs);
       }
     } catch (err: any) {
-      setAnswer("Could not reach service. Please verify network connection.");
-      setIsOfflineSample(true);
-      setApiError({ type: "NETWORK_ERROR", message: err.message || "" });
+      setAnswer(null);
+      setIsOfflineSample(false);
+      setApiError({
+        type: "NETWORK_ERROR",
+        message: err.message || "Could not reach live AI service.",
+      });
     } finally {
       setIsAsking(false);
     }
@@ -1555,22 +1585,59 @@ export function PartCard({
               <h4 className="text-xs font-bold text-white flex items-center gap-2">
                 <span>Ask Copilot About This Component</span>
               </h4>
-              <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono mt-0.5">
-                <span className="flex items-center gap-1 text-sky-300">
-                  <Bot className="w-3 h-3 text-sky-400" />
-                  Gemini 3.8 Flash
-                </span>
-                <span>•</span>
-                <span className="flex items-center gap-1 text-emerald-400 font-semibold">
-                  <Globe className="w-3 h-3 text-emerald-400" />
-                  Live Google Search Grounding Active
-                </span>
+              <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono mt-0.5">
+                <span className="text-sky-300">Gemini Free Tier</span>
+                <span>·</span>
+                <span className="text-emerald-400">Groq LPU Failover</span>
+                <span>·</span>
+                <span>Live Search</span>
               </div>
             </div>
           </div>
-          <span className="text-[10px] font-mono text-slate-400 bg-slate-800/90 border border-slate-700/60 px-2 py-0.5 rounded">
-            FAA / EASA Directives & AMM Library
-          </span>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Provider Selector */}
+            <div className="inline-flex items-center p-0.5 rounded-lg bg-slate-950 border border-slate-800">
+              {(
+                [
+                  { id: "auto", label: "Auto" },
+                  { id: "gemini", label: "Gemini" },
+                  { id: "groq", label: "Groq" },
+                ] as { id: AIProviderPreference; label: string }[]
+              ).map((opt) => (
+                <button
+                  key={opt.id}
+                  onClick={() => {
+                    setPreferredProvider(opt.id);
+                    try {
+                      localStorage.setItem("engineiq_preferred_ai_provider", opt.id);
+                    } catch {}
+                  }}
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-mono transition cursor-pointer ${
+                    preferredProvider === opt.id
+                      ? "bg-sky-500 text-white font-semibold"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {onOpenAICopilot && (
+              <button
+                onClick={() =>
+                  onOpenAICopilot(
+                    question.trim() ||
+                      `What are the AMM damage limits, troubleshooting steps, and active findings for ${part.name} on ${tailNumber}?`
+                  )
+                }
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 hover:text-white border border-sky-500/40 font-mono text-[10px] font-bold transition cursor-pointer"
+                title="Open Multi-Turn AI Copilot Drawer with Fleet + AMM + Search Context"
+              >
+                <Bot className="w-3 h-3 text-sky-400" />
+                <span>Multi-Turn Copilot</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Quick Question Chips */}
@@ -1586,7 +1653,7 @@ export function PartCard({
               key={i}
               onClick={() => {
                 setQuestion(prompt);
-                handleAsk(prompt);
+                void handleAsk(prompt);
               }}
               className="text-[11px] text-slate-300 bg-slate-800/80 hover:bg-slate-700/80 hover:text-white px-2.5 py-1 rounded-lg border border-slate-700 transition cursor-pointer"
             >
@@ -1602,15 +1669,15 @@ export function PartCard({
             type="text"
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleAsk()}
-            placeholder={`Ask a specific question about the ${part.name} (live FAA/EASA bulletins or AMM procedures)...`}
+            onKeyDown={(e) => e.key === "Enter" && void handleAsk()}
+            placeholder={`Ask any question about ${part.name} (routed to live Gemini Free Tier / Groq)...`}
             className="w-full bg-slate-950/90 border border-slate-700 focus:border-sky-500 rounded-lg pl-3 pr-10 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none transition font-sans"
           />
           <button
-            onClick={() => handleAsk()}
+            onClick={() => void handleAsk()}
             disabled={isAsking || !question.trim()}
             className="absolute right-1.5 top-1.5 p-1.5 text-sky-400 hover:text-white disabled:text-slate-600 rounded-md transition cursor-pointer"
-            title="Send Query with Live Google Search"
+            title="Send Query to Live AI"
           >
             {isAsking ? <Loader2 className="w-4 h-4 animate-spin text-sky-400" /> : <Send className="w-4 h-4" />}
           </button>
@@ -1618,12 +1685,11 @@ export function PartCard({
 
         {/* Live Grounding Indicator during search */}
         {isAsking && (
-          <div className="p-3 rounded-lg bg-sky-950/40 border border-sky-800/50 flex items-center justify-between text-xs text-sky-200 animate-pulse font-mono">
+          <div className="p-3 rounded-lg bg-sky-950/40 border border-sky-800/50 flex items-center justify-between text-xs text-sky-200 font-mono">
             <div className="flex items-center gap-2">
-              <Globe className="w-4 h-4 text-sky-400 animate-spin" />
-              <span>Grounding query with live Google Search...</span>
+              <Loader2 className="w-4 h-4 text-sky-400 animate-spin" />
+              <span>Querying Live AI ({preferredProvider.toUpperCase()} — Gemini Free Tier / Groq)...</span>
             </div>
-            <span className="text-[10px] text-slate-400">Querying FAA / EASA / P&W Bulletins</span>
           </div>
         )}
 
@@ -1632,7 +1698,7 @@ export function PartCard({
           <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/90 text-xs">
             <div className="flex items-center gap-1.5 text-slate-400 font-mono text-[10px] mb-1">
               <Globe className="w-3 h-3 text-sky-400" />
-              <span>Google Search Grounding Queries Executed by Gemini:</span>
+              <span>Google Search Grounding Queries Executed:</span>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {searchQueries.map((sq, idx) => (
@@ -1647,35 +1713,58 @@ export function PartCard({
           </div>
         )}
 
-        {/* API Credit Warning Banner */}
-        {apiError?.type === "CREDITS_DEPLETED" && (
-          <div className="p-3.5 rounded-xl bg-amber-950/80 border border-amber-800/80 text-xs text-amber-200 space-y-2 shadow-lg">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex items-center gap-2 font-bold text-amber-300">
-                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-                <span>Gemini API Prepayment Credits Depleted (HTTP 402)</span>
-              </div>
-              <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-amber-900/80 text-amber-300 border border-amber-700/60 font-semibold shrink-0">
-                Fallback Engine Active
-              </span>
+        {/* Strict Live AI Error Banner (No Silent Canned Data) */}
+        {apiError && (
+          <div className="p-3.5 rounded-xl bg-rose-950/40 border border-rose-500/40 text-xs text-slate-200 space-y-2.5 shadow-lg">
+            <div className="flex items-center gap-2 font-bold text-rose-300">
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>Live AI Request Failed (No Pre-Filled Data Substituted)</span>
             </div>
-            <p className="text-[11px] text-amber-100/90 leading-relaxed font-sans">
-              The Google Cloud project linked in AI Studio has exhausted its prepayment credits for live Gemini 3.8 Flash & Google Search.
-              To avoid empty errors, <strong>EngineIQ On-Wing Knowledge Engine</strong> has dynamically analyzed your question and synthesized the authentic engineering response below.
+            <p className="text-[11px] text-slate-300 leading-relaxed font-sans">
+              {apiError.message}
             </p>
-            <div className="flex items-center gap-2 pt-1 flex-wrap">
-              <a
-                href="https://ai.google.dev/gemini-api/docs/billing#prepay"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold text-[11px] transition shadow cursor-pointer"
+            {apiError.attemptErrors && apiError.attemptErrors.length > 0 && (
+              <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800 font-mono text-[10px] text-slate-400 space-y-1">
+                {apiError.attemptErrors.map((errLine, idx) => (
+                  <div key={idx}>• {errLine}</div>
+                ))}
+              </div>
+            )}
+            <div className="p-2.5 rounded-lg bg-sky-950/40 border border-sky-500/30 text-[11px] text-sky-200 space-y-1">
+              <div className="font-semibold text-white">
+                Configure Free Gemini or Groq Key in Settings &gt; Secrets:
+              </div>
+              <div>
+                Add <code>GROQ_API_KEY</code> (from{" "}
+                <a
+                  href="https://console.groq.com/keys"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline text-sky-300 hover:text-white"
+                >
+                  console.groq.com
+                </a>
+                ) or a free <code>GEMINI_API_KEY</code> (from{" "}
+                <a
+                  href="https://aistudio.google.com/apikey"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline text-sky-300 hover:text-white"
+                >
+                  aistudio.google.com
+                </a>
+                ) in AI Studio&apos;s <strong>Settings &gt; Secrets</strong> panel.
+              </div>
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                onClick={() => void handleAsk()}
+                disabled={isAsking}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-white font-mono text-[11px] font-semibold transition cursor-pointer"
               >
-                <span>Add AI Studio Credits</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-              <span className="text-[10px] text-amber-300/80 font-mono">
-                or switch to a funded billing project in AI Studio settings
-              </span>
+                <RefreshCw className="w-3 h-3" />
+                <span>Retry Live AI</span>
+              </button>
             </div>
           </div>
         )}
@@ -1685,24 +1774,25 @@ export function PartCard({
           <div className="p-4 rounded-xl bg-slate-950/90 border border-slate-800 text-xs leading-relaxed text-slate-200 space-y-3 shadow-inner">
             <div className="flex items-center justify-between pb-2 border-b border-slate-800/80 flex-wrap gap-2">
               <span className="font-semibold text-sky-400 flex items-center gap-1.5">
-                <HelpCircle className="w-3.5 h-3.5" /> Copilot Grounded Answer:
+                <HelpCircle className="w-3.5 h-3.5" /> Copilot Live Answer:
               </span>
-              <div className="flex items-center gap-2">
-                {sources.length > 0 && (
-                  <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/80 border border-emerald-800/60 px-2 py-0.5 rounded flex items-center gap-1">
-                    <Globe className="w-2.5 h-2.5" /> {sources.length} Live Sources
-                  </span>
-                )}
+              <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-400">
                 {isOfflineSample ? (
-                  <span className="text-[10px] font-mono uppercase bg-slate-900 text-amber-400 px-2 py-0.5 rounded border border-amber-800/60 flex items-center gap-1 font-semibold">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-                    On-Wing Knowledge Engine (Offline Mode)
+                  <span className="text-amber-400">
+                    Offline Synthesizer (No API Keys Set)
                   </span>
                 ) : (
-                  <span className="text-[10px] font-mono uppercase bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded border border-emerald-800/60 flex items-center gap-1 font-semibold">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                    Live Gemini 3.8 Flash + Google Search
-                  </span>
+                  <>
+                    <span className="text-emerald-400 font-semibold">
+                      LIVE · {(answerProvider || "gemini").toUpperCase()} · {answerModel || "gemini-3.8-flash"}
+                    </span>
+                    {answerLatencyMs !== undefined && (
+                      <>
+                        <span>·</span>
+                        <span className="tabular-nums">{answerLatencyMs}ms</span>
+                      </>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -1715,7 +1805,7 @@ export function PartCard({
             {/* Grounded Web Sources (Clickable Badges) */}
             {sources.length > 0 && (
               <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
-                <span className="text-[10px] font-mono uppercase text-slate-400 tracking-wider font-semibold block">
+                <span className="text-[10px] font-mono text-slate-400 font-semibold block">
                   Grounded Regulatory & Technical Sources:
                 </span>
                 <div className="flex flex-wrap gap-2">

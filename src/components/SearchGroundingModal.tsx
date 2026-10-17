@@ -74,10 +74,21 @@ export function SearchGroundingModal({
         hubBases: ["DEL", "BOM", "BLR"],
       });
 
-      setResultText(response.text);
-      setSources(response.sources);
-      setSearchQueries(response.searchQueries || []);
-      setIsOfflineSample(response.isOfflineSample);
+      if (response.liveError) {
+        setResultText("");
+        setSources([]);
+        setSearchQueries([]);
+        setIsOfflineSample(false);
+        setError(
+          response.errorMessage ||
+            "All live AI providers failed. Configure a free GROQ_API_KEY or GEMINI_API_KEY in Settings > Secrets."
+        );
+      } else {
+        setResultText(response.text);
+        setSources(response.sources);
+        setSearchQueries(response.searchQueries || []);
+        setIsOfflineSample(response.isOfflineSample);
+      }
     } catch (err: any) {
       console.error("Search Grounding query failed:", err);
       setError(err.message || "Failed to query search-grounded intelligence.");

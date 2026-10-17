@@ -52,6 +52,7 @@ import { FleetDashboard } from "./components/FleetDashboard";
 import { EngineeringSpecsSheet } from "./components/EngineeringSpecsSheet";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { SearchGroundingModal } from "./components/SearchGroundingModal";
+import { AICopilotDrawer } from "./components/AICopilotDrawer";
 import {
   Compass,
   AlertTriangle,
@@ -75,6 +76,7 @@ import {
   ClipboardList,
   Gauge,
   Wrench,
+  Bot,
 } from "lucide-react";
 
 type AppMode = "explore" | "incident" | "caselog" | "evaluation" | "preventive";
@@ -426,11 +428,18 @@ export default function App() {
   // 9. Multi-select for Training Mode
   const [multiSelectedParts, setMultiSelectedParts] = useState<PartId[]>([]);
 
-  // 10. Modals
+  // 10. Modals & Multi-Turn AI Copilot Drawer
   const [activeDoc, setActiveDoc] = useState<DocSnippet | null>(null);
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [searchModalQuery, setSearchModalQuery] = useState("");
+  const [isCopilotDrawerOpen, setIsCopilotDrawerOpen] = useState(false);
+  const [copilotInitialPrompt, setCopilotInitialPrompt] = useState<string>("");
+
+  const handleOpenAICopilot = (prompt?: string) => {
+    setCopilotInitialPrompt(prompt || "");
+    setIsCopilotDrawerOpen(true);
+  };
 
   // Derived current engine
   const currentEngine = useMemo(() => {
@@ -937,6 +946,7 @@ export default function App() {
           onUpdateEngineerProfile={handleUpdateEngineerProfile}
           onAddEngineerProfile={handleAddEngineerProfile}
           onSwitchSessionProfile={handleSwitchSessionProfile}
+          onOpenAICopilot={handleOpenAICopilot}
           onFlightChange={(fNum) => {
             setSelectedFlightNumber(fNum);
             try {
@@ -951,7 +961,44 @@ export default function App() {
           }}
         />
 
-        {/* Global Modals for Fleet Dashboard */}
+        {/* Floating Multi-Turn AI Copilot Quick Launcher */}
+        {!isCopilotDrawerOpen && (
+          <button
+            id="btn-floating-ai-copilot-fleet"
+            onClick={() => handleOpenAICopilot()}
+            className="fixed bottom-5 right-5 z-40 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-mono text-xs font-bold shadow-xl border border-sky-400/50 transition cursor-pointer"
+            title="Open Multi-Turn AI Copilot Drawer (Live Fleet + AMM + Search)"
+          >
+            <Bot className="w-4 h-4" />
+            <span>Ask AI Copilot</span>
+          </button>
+        )}
+
+        {/* Global Modals & Multi-Turn AI Copilot Drawer for Fleet Dashboard */}
+        <AICopilotDrawer
+          isOpen={isCopilotDrawerOpen}
+          onClose={() => setIsCopilotDrawerOpen(false)}
+          session={session}
+          engines={engines}
+          caseLogs={caseLogs}
+          crsRecords={flightCRSRecords}
+          roster={mroRoster}
+          currentEngine={currentEngine || null}
+          activeFlight={activeFlight || null}
+          selectedPartId={selectedPartId}
+          initialPrompt={copilotInitialPrompt}
+          onSelectEngine={handleSelectEngine}
+          onSelectPart={(partId) => setSelectedPartId(partId)}
+          onSelectFlight={(fNum) => {
+            setCurrentEngineId(null);
+            setSelectedFlightNumber(fNum);
+            try {
+              localStorage.setItem("engineiq_selected_flight", fNum);
+              localStorage.removeItem("engineiq_selected_engine");
+            } catch {}
+          }}
+          onOpenCitation={handleOpenCitation}
+        />
         <CitationModal doc={activeDoc} onClose={() => setActiveDoc(null)} />
         <AboutModal isOpen={showAboutModal} onClose={() => setShowAboutModal(false)} />
       </div>
@@ -1124,6 +1171,18 @@ export default function App() {
             </button>
           )}
 
+          {/* Unified Multi-Turn AI Copilot Button */}
+          <button
+            id="btn-open-ai-copilot-workspace"
+            onClick={() => handleOpenAICopilot()}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-white text-xs font-mono font-bold shadow-sm transition cursor-pointer whitespace-nowrap"
+            title="Open Multi-Turn AI Copilot Drawer"
+          >
+            <Bot className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Ask AI Copilot</span>
+            <span className="sm:hidden">AI Q&A</span>
+          </button>
+
           {/* Whiteboard / Dark HUD Toggle */}
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
 
@@ -1291,6 +1350,7 @@ export default function App() {
                 onUpdatePartStatus={handleUpdatePartStatus}
                 openCases={caseLogs.filter((c) => currentEngine.openCaseIds.includes(c.id))}
                 onSaveCaseLog={handleSaveCaseLog}
+                onOpenAICopilot={handleOpenAICopilot}
               />
             )}
 
@@ -1337,7 +1397,35 @@ export default function App() {
       </main>
     )}
 
-      {/* 5. Global Modals */}
+      {/* 5. Global Modals & Multi-Turn AI Copilot Drawer */}
+      <AICopilotDrawer
+        isOpen={isCopilotDrawerOpen}
+        onClose={() => setIsCopilotDrawerOpen(false)}
+        session={session}
+        engines={engines}
+        caseLogs={caseLogs}
+        crsRecords={flightCRSRecords}
+        roster={mroRoster}
+        currentEngine={currentEngine}
+        activeFlight={activeFlight || null}
+        selectedPartId={selectedPartId}
+        initialPrompt={copilotInitialPrompt}
+        onSelectEngine={handleSelectEngine}
+        onSelectPart={(partId) => {
+          setSelectedPartId(partId);
+          setActiveMode("explore");
+          setExploreSubView("3d");
+        }}
+        onSelectFlight={(fNum) => {
+          setCurrentEngineId(null);
+          setSelectedFlightNumber(fNum);
+          try {
+            localStorage.setItem("engineiq_selected_flight", fNum);
+            localStorage.removeItem("engineiq_selected_engine");
+          } catch {}
+        }}
+        onOpenCitation={handleOpenCitation}
+      />
       <CitationModal doc={activeDoc} onClose={() => setActiveDoc(null)} />
       <AboutModal isOpen={showAboutModal} onClose={() => setShowAboutModal(false)} />
       <SearchGroundingModal

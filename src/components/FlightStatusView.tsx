@@ -27,6 +27,7 @@ import {
   ClipboardList,
   ShieldCheck,
   Wrench,
+  Bot,
 } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { AppTheme } from "../types";
@@ -44,6 +45,7 @@ interface FlightStatusViewProps {
   onToggleTheme?: () => void;
   crsRecord?: FlightCRSRecord;
   onIssueFlightCRS?: (record: FlightCRSRecord) => void;
+  onOpenAICopilot?: (prompt?: string) => void;
 }
 
 export function FlightStatusView({
@@ -59,6 +61,7 @@ export function FlightStatusView({
   onToggleTheme,
   crsRecord,
   onIssueFlightCRS,
+  onOpenAICopilot,
 }: FlightStatusViewProps) {
   const engine1Cases = caseLogs.filter((c) =>
     engine1 ? engine1.openCaseIds.includes(c.id) : c.engineId === flight.engine1Id
@@ -113,6 +116,21 @@ export function FlightStatusView({
           </div>
 
           <div className="flex items-center gap-3 text-xs font-mono">
+            {onOpenAICopilot && (
+              <button
+                id="btn-flight-ask-copilot"
+                onClick={() =>
+                  onOpenAICopilot(
+                    `What is the live dispatch status, open cases, and CRS readiness for Flight ${flight.flightNumber} (${flight.aircraftTail})?`
+                  )
+                }
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 hover:text-white border border-sky-500/40 font-mono text-xs font-bold transition cursor-pointer whitespace-nowrap"
+                title="Open Multi-Turn AI Copilot for this flight"
+              >
+                <Bot className="w-3.5 h-3.5 text-sky-400" />
+                <span>Ask AI Copilot ({flight.flightNumber})</span>
+              </button>
+            )}
             {theme && onToggleTheme && (
               <ThemeToggle theme={theme} onToggle={onToggleTheme} />
             )}

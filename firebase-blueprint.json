@@ -390,6 +390,72 @@
         "date",
         "createdAt"
       ]
+    },
+    "SystemAIConfigDoc": {
+      "title": "SystemAIConfigDoc",
+      "description": "Platform-managed runtime configuration for AI providers, Groq API key vault, and model routing cascades.",
+      "type": "object",
+      "properties": {
+        "configId": {
+          "type": "string",
+          "description": "Configuration document identifier (e.g. groq_runtime)",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "provider": {
+          "type": "string",
+          "description": "AI provider service name",
+          "enum": ["groq"],
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "encodedApiKey": {
+          "type": "string",
+          "description": "Obfuscated / encoded API key payload for hosted runtime hydration",
+          "minLength": 10,
+          "maxLength": 512
+        },
+        "primaryModel": {
+          "type": "string",
+          "description": "Primary high-reasoning model identifier",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "visionModel": {
+          "type": "string",
+          "description": "Multimodal vision model identifier",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "fallbackModel": {
+          "type": "string",
+          "description": "Low-latency fallback model identifier",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "updatedByEmail": {
+          "type": "string",
+          "description": "Email of the platform owner who last synchronized the runtime vault",
+          "minLength": 3,
+          "maxLength": 160
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of configuration update"
+        }
+      },
+      "required": [
+        "configId",
+        "provider",
+        "encodedApiKey",
+        "primaryModel",
+        "visionModel",
+        "fallbackModel",
+        "updatedByEmail",
+        "updatedAt"
+      ]
     }
   },
   "firestore": {
@@ -412,6 +478,10 @@
     "/rectification_logs/{logId}": {
       "schema": { "$ref": "#/entities/RectificationLogDoc" },
       "description": "Shared operational component measurement and rectification audit logs."
+    },
+    "/system_ai_config/{configId}": {
+      "schema": { "$ref": "#/entities/SystemAIConfigDoc" },
+      "description": "Platform-managed AI provider runtime vault and model routing configurations."
     }
   }
 }

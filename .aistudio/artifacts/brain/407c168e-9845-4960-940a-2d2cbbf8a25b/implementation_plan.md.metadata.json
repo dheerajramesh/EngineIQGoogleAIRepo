@@ -1,6 +1,6 @@
 {
-  "summary": "Implementation plan for Enterprise MRO Role-Based Access Control (RBAC), Firebase Authentication & Firestore Real-Time Persistence, Supervisor Engineer-Assignment Console, and Express Backend API with Zero-Breakage Fallback.",
-  "updatedAt": "2026-10-17T14:06:30.535732224Z",
+  "summary": "Implementation plan for persisting the Groq API key and model cascade in the application's Firebase Firestore database (ai-studio-engineiq-407c168e-9845-4960-940a-2d2cbbf8a25b) with automatic server-to-Firestore sync and hosted fallback, managed strictly by the application backend without exposing any configuration UI to end-users.",
+  "updatedAt": "2026-10-17T17:26:40.084369563Z",
   "requestFeedback": true,
   "userFacing": true
 }

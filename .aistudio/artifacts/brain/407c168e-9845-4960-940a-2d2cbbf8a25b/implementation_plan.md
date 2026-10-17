@@ -1,61 +1,129 @@
-# Enterprise MRO RBAC, Firebase Auth & Real-Time Firestore Architecture Plan
+# EngineIQ Platform-Managed Firebase Firestore AI Key Vault & Hosted Sync
 
-## 1. Benchmark Against Industry MRO Competitors (Swiss-AS AMOS, Airbus Skywise, Lufthansa AVIATAR)
-In production airline MRO platforms (such as **Swiss-AS AMOS** and **Airbus Skywise**), maintenance actions are strictly governed by **CAR-145 / Part-145 Role-Based Access Control (RBAC)** and **Tail/Station Roster Assignments**:
-- **Maintenance Control Center (MCC) / Fleet Supervisor (`Supervisor`)**:
-  - Holds **full system visibility** across all line stations (`DEL`, `BOM`, `BLR`, `HYD`, `MAA`, `CCU`), all 8 flights, and all 16 engines.
-  - Can **assign or reassign specific aircraft tails, flights, and engines to Certifying Line Engineers** from a live **RBAC Roster & Tail Assignment Console**.
-  - Can override, audit, or co-sign any rectification or CRS dispatch certificate.
-- **Certifying Line Engineer (`Engineer`)**:
-  - Has **scoped visibility and write authority** restricted to their **Supervisor-assigned aircraft tails / flights** (with a toggle to request or view read-only fleet reference if permitted).
-  - Actions taken by an engineer on their assigned aircraft are synced in real time to the **Fleet Supervisor's MCC dashboard**, while unassigned aircraft remain protected from accidental edits.
-- **Trainee / Line Under-Instruction (`Trainee`)**:
-  - Operates in a **strictly isolated personal sandbox (`sandbox_state/{uid}`)**. Any simulated incidents, micrometer inputs, or practice sign-offs made by a Trainee are **completely invisible to other users** and never alter live fleet airworthiness.
+This plan persists your **Groq API key** and active model cascade (`openai/gpt-oss-120b`, `qwen/qwen3.8-27b`, `openai/gpt-oss-20b`) directly inside your application's **Firebase Firestore database (`ai-studio-engineiq-407c168e-9845-4960-940a-2d2cbbf8a25b`)** so that when you host or share the application, the backend automatically retrieves the key from Firebase without requiring environment variables on the hosted server or any action from end-users.
 
 ---
 
-## 2. Firebase Authentication & Firestore Data Architecture
-Upon approval of this plan, we will provision Firebase (`firebase_setup` UI + `ProvisionFirebase` RPC) and establish the following collections in `firebase-blueprint.json` and `firestore.rules`:
+## User Review & Critical Decisions
 
-1. **`/users/{userId}` (`UserProfile`)**:
-   - Stores `uid`, `email`, `displayName`, `role` (`Supervisor` | `Engineer` | `Trainee`), `badge` (e.g., `DGCA AME #8842`), `homeBase` (`DEL`, `BOM`, `BLR`, etc.), `assignedFlightNumbers` (bounded array of flight numbers assigned by Supervisor), and `assignedTailNumbers` (bounded array of aircraft registrations).
-   - Bootstraps `dheeraj.aimit@gmail.com` with full **Fleet Supervisor** privileges by default.
-2. **`/fleet_engines/{engineId}` (`FleetEngineDoc`)**:
-   - Real-time operational state for all 16 PW1100G-JM engines (`status`, `cyclesSinceNew`, `openCaseIds`, `partStatuses`, `lastUpdatedBy`, `updatedAt`).
-   - Writable by `Supervisor` on all engines, and by `Engineer` on their assigned aircraft tails.
-3. **`/case_logs/{caseId}` & `/component_history/{logId}`**:
-   - Real-time defect reports, AMM limit evaluations, micrometer measurements, and post-repair rectification sign-offs.
-4. **`/flight_crs/{flightId}` (`FlightCRSDoc`)**:
-   - Signed Certificate of Release to Service (CRS) dispatch records per flight.
-5. **`/user_sandboxes/{userId}` (`UserSandboxDoc`)**:
-   - Isolated state for `Trainee` users (or isolated testing mode) so their actions are never visible to other users and never affect live operational flights.
+> [!IMPORTANT]
+> **Summary of Confirmed Architecture & Security Decisions**
+> - **Confirmed Decision 1 (Auto-Sync Server Key to Firestore with Env Fallback)**: While running in an environment where `process.env.GROQ_API_KEY` is present, the application automatically syncs and persists the key and model priority list (`openai/gpt-oss-120b` → `qwen/qwen3.8-27b` → `openai/gpt-oss-20b`) into Firestore (`/system_ai_config/groq_runtime`). When hosted in an environment where `process.env.GROQ_API_KEY` is missing, the backend automatically loads and caches the key from Firestore.
+> - **Confirmed Decision 2 (100% Platform-Managed by Application Owner — Zero End-User Exposure)**: End-users ("the people" using the application) never manage, view, or configure Firebase or API keys. The Firestore database (`ai-studio-engineiq-407c168e-9845-4960-940a-2d2cbbf8a25b`) is managed strictly by the application itself under the platform owner (`dheeraj.aimit@gmail.com`), and all AI requests work transparently behind the scenes.
 
 ---
 
-## 3. Zero-Breakage Hybrid Authentication & Express Backend (`server.ts`)
-To guarantee that **nothing in the existing application breaks** under any network or browser condition:
-- **Real Google Sign-In + Instant MRO Role Profile Switcher**:
-  - `LoginView.tsx` will feature **Sign in with Google (Firebase Auth)** as the primary enterprise login, automatically creating/loading the user's Firestore RBAC profile.
-  - Preserves an **Instant Demo Role Session** mode and **Live Role Switcher** in the header so evaluators can test `Fleet Supervisor (Full Access)`, `Assigned Line Engineer (Scoped Access)`, and `Trainee (Isolated Sandbox)` side-by-side without friction.
-- **Resilient Sync Layer (`src/services/firebaseSync.ts`)**:
-  - Uses Firestore `onSnapshot` listeners when authenticated with Firebase, with automatic `localStorage` fallback so every 3D interaction, micrometer gauge, rectification worksheet, and CRS release works identically online or offline.
-- **Full-Stack Express Server (`server.ts`)**:
-  - Runs Express on port `3000` with Vite middleware mounted in dev (`"dev": "tsx server.ts"`), exposing `/api/health` and `/api/rbac/summary` for backend verification while serving the SPA seamlessly.
+## 1. Overview & Core Concept
+
+- **What It Does**:
+  1. **Automatic Firestore Vault Bootstrap (`/system_ai_config/groq_runtime`)**: Persists the active Groq key (obfuscated/encoded at rest) and verified model routing table (`openai/gpt-oss-120b`, `qwen/qwen3.8-27b`, `openai/gpt-oss-20b`) into the application's Firestore database (`ai-studio-engineiq-407c168e-9845-4960-940a-2d2cbbf8a25b`).
+  2. **Seamless Hosted Runtime Hydration**: When the application is deployed or hosted outside this workspace (where container environment variables may not be injected), the Express backend (`server.ts`) resolves the Groq key from Firestore and caches it in memory so `/api/gemini/copilot-chat`, `/api/gemini/part-ask`, `/api/gemini/extract`, `/api/gemini/explain`, `/api/gemini/training-feedback`, and `/api/gemini/search-grounded-intel` continue returning live LLM answers immediately.
+  3. **Hardened Platform-Owner Security Rules**: Locks down `/system_ai_config/{configId}` in `firestore.rules` so only the platform owner (`dheeraj.aimit@gmail.com` / `isBootstrappedSupervisor()`) can write or update the stored AI configuration, while completely preventing regular engineers or trainees from tampering with it.
+- **Target Audience / Persona**: The application owner deploying EngineIQ to production or shared hosting, and aviation MRO engineers using the hosted app who expect instant, zero-configuration AI answers.
+- **Key Value**: Eliminates broken AI features on hosted deployments caused by missing container `.env` variables, while keeping Firebase and API key management 100% invisible to end-users.
 
 ---
 
-## 4. Planned File Changes
-1. **Provision Firebase & Security Rules**:
-   - Provision Firebase via `show_aistudio_ui` (`firebase_setup`) and `ProvisionFirebase`.
-   - Create `firebase-blueprint.json`, `security_spec.md`, and hardened `firestore.rules` enforcing RBAC (`Supervisor` full access, `Engineer` assigned-tail access, `Trainee` private sandbox isolation).
-2. **`src/services/firebase.ts` & `src/components/RBACManagerModal.tsx`**:
-   - Initialize Firebase Auth (`GoogleAuthProvider`, `signInWithPopup`) and Firestore (`getFirestore` with `firebaseConfig.firestoreDatabaseId`), plus `handleFirestoreError` diagnostics and startup `getDocFromServer` check.
-   - Build the **Supervisor RBAC & Engineer Tail Assignment Console** (`src/components/RBACManagerModal.tsx`) allowing Supervisors to assign/unassign specific flights (`6E 204`, `6E 502`, `6E 112`, etc.) and aircraft tails (`VT-IZB`, `VT-ITG`, `VT-IMR`, etc.) to individual Engineers and control visibility scopes.
-3. **`src/components/LoginView.tsx`, `src/components/FleetDashboard.tsx`, & `src/App.tsx`**:
-   - Add Google Sign-In button and live Firebase Auth status badge to `LoginView.tsx`.
-   - Enforce RBAC filtering in `FleetDashboard.tsx`:
-     - **Supervisors** see all 8 flights, all 16 engines, and the **"RBAC & Engineer Assignments"** management button.
-     - **Engineers** see their **Assigned Flights & Aircraft Tails** badge and scoped workload (unassigned aircraft are hidden or locked based on Supervisor policy).
-     - **Trainees** see an **"Isolated Sandbox Mode — Changes Private to You"** badge where actions are isolated from all other users.
-4. **`server.ts` & `package.json`**:
-   - Add Express backend entry point on port 3000 with `/api/health` and `/api/rbac/policy` endpoints and Vite dev middleware integration.
+## 2. User Experience & Visual Design
+
+- **Key User Flows**:
+  1. **Zero-Config End-User Experience**:
+     - An engineer or supervisor opens the hosted EngineIQ application and asks any question in the **AI Copilot Drawer** or **Component Copilot**.
+     - They never see an API key prompt, secret input box, or Firebase setup screen. The backend transparently uses the Groq key resolved from `process.env.GROQ_API_KEY` or the Firebase Firestore `/system_ai_config/groq_runtime` vault.
+  2. **Automatic Background Sync (Platform Owner)**:
+     - When the application boots in an environment with `GROQ_API_KEY`, the server and authenticated owner session automatically synchronize the encoded key payload to Firestore `/system_ai_config/groq_runtime`.
+     - When running on a hosted instance where `process.env.GROQ_API_KEY` is absent, the app automatically hydrates the server's in-memory key cache from Firestore `/system_ai_config/groq_runtime` on load.
+  3. **Health & Provenance Transparency**:
+     - `/api/health` reports `hasGroqKey: true` and `keySource: "env" | "firebase_firestore"` so the header and Copilot Drawer seamlessly display **Live AI Ready (Groq)** whether the key came from the local environment or Firebase Firestore.
+
+- **Visual Identity & Theme**:
+  - *Aesthetic Direction*: High-precision Enterprise Aviation MRO Console (Airbus Skywise / Swiss AviationSoftware AMOS aesthetic) following a 60-30-10 neutral-to-accent distribution.
+  - *Color Palette & Mood*:
+    - `--background`: `#F8FAFC` (Slate 50 canvas) and `#0F172A` (Slate 900 command header).
+    - `--surface`: `#FFFFFF` with `1px solid #E2E8F0` hairline structural dividers.
+    - `--primary`: `#001B94` (IndiGo Aviation Cobalt) for primary actions and active states.
+    - `--accent`: `#059669` (Emerald 600) for verified live AI provenance (`LIVE · GROQ · openai/gpt-oss-120b`).
+  - *Typography & Hierarchy*: `Plus Jakarta Sans` for headings and UI controls, `JetBrains Mono` (`tabular-nums`) for AMM references, latency counters, and flight telemetry.
+
+---
+
+## 3. Key Product Decisions & Trade-Offs
+
+- **Decision 1: Dual-Layer Resolution (`process.env.GROQ_API_KEY` → In-Memory Firestore Cache → Firestore Document Fetch)**
+  - *Chosen Approach*: `getGroqApiKey()` checks `process.env.GROQ_API_KEY` first; if absent in a hosted environment, it reads `cachedFirestoreGroqKey` hydrated from `/system_ai_config/groq_runtime` in Firestore (`ai-studio-engineiq-407c168e-9845-4960-940a-2d2cbbf8a25b`).
+  - *Why*: Guarantees sub-millisecond key lookup during AI requests while ensuring hosted deployments automatically recover the key from Firebase Firestore even if container `.env` variables are stripped during deployment.
+  - *Alternatives Considered*: Reading only from `.env` (fails when hosted without container secrets) or querying Firestore over the network on every single LLM call without caching (adds unnecessary latency and Firestore read usage).
+
+- **Decision 2: Platform-Managed Security Boundary (No End-User Key UI)**
+  - *Chosen Approach*: The Firestore `/system_ai_config/groq_runtime` document is managed automatically by the application backend and restricted in `firestore.rules` so only the bootstrapped platform owner (`dheeraj.aimit@gmail.com`) can write to it, while signed-in application sessions or the backend service can hydrate the server cache without ever displaying keys in the UI.
+  - *Why*: Honors your requirement that Firebase is managed by you (the application owner), not by the people using the app, and complies with the strict no-API-key-UI security policy.
+
+---
+
+## 4. Technical Architecture & Data Strategy *(Technical Reference)*
+
+### Architecture & Component Diagram
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                 EngineIQ Application (Dev & Hosted Runtime)                  │
+│  ┌────────────────────────────────────┐  ┌────────────────────────────────┐  │
+│  │ Silent Firestore AI Config Sync    │  │ AI Copilot & AMM Q&A Views     │  │
+│  │ • Auto-syncs server key to         │  │ • Global AI Copilot Drawer     │  │
+│  │   /system_ai_config/groq_runtime   │  │ • Component Copilot (PartCard) │  │
+│  │ • Hydrates hosted server if env    │  │ • Zero key UI for end-users    │  │
+│  │   var is missing on deployment     │  └───────────────┬────────────────┘  │
+│  └─────────────────┬──────────────────┘                  │                   │
+└────────────────────┼─────────────────────────────────────┼───────────────────┘
+                     │                                     │ POST /api/gemini/*
+                     ▼                                     ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                Express Backend AI Router & Vault Manager                     │
+│                                                                              │
+│  ┌────────────────────────────────────────────────────────────────────────┐  │
+│  │ Key Resolution Priority:                                               │  │
+│  │  1. process.env.GROQ_API_KEY (Dev / Container Env)                     │  │
+│  │     └─► Auto-persists encoded key to Firestore /system_ai_config       │  │
+│  │  2. cachedFirestoreGroqKey (Hydrated from Firebase Firestore)          │  │
+│  │     └─► Used automatically when hosted container lacks process.env     │  │
+│  └───────────────────────────────────┬────────────────────────────────────┘  │
+│                                      │                                       │
+│                                      ▼                                       │
+│  ┌────────────────────────────────────────────────────────────────────────┐  │
+│  │ Multi-Provider Live LLM Execution + 402 Circuit Breaker                │  │
+│  │  • Primary: openai/gpt-oss-120b                                        │  │
+│  │  • Secondary / Vision: qwen/qwen3.8-27b                                │  │
+│  │  • Fast Failover: openai/gpt-oss-20b                                   │  │
+│  └────────────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────┬───────────────────────────────────────┘
+                                       │
+                                       ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│   Firebase Firestore (ai-studio-engineiq-407c168e-9845-4960-940a-2d2cbbf8a25b)│
+│  • Collection: /system_ai_config/{configId} (Document: groq_runtime)         │
+│  • Hardened Rules: Write locked to Platform Owner (dheeraj.aimit@gmail.com)  │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Data Model & State (`SystemAIConfigDoc` in `firebase-blueprint.json`)
+- **Path**: `/system_ai_config/{configId}` (specifically `/system_ai_config/groq_runtime`)
+- **Schema Properties**:
+  - `configId`: `"groq_runtime"` (`string`, 1–64 chars, alphanumeric/hyphen/underscore)
+  - `provider`: `"groq"` (`string`, enum `["groq"]`)
+  - `encodedApiKey`: Base64/obfuscated Groq API key payload (`string`, 10–512 chars)
+  - `primaryModel`: `"openai/gpt-oss-120b"` (`string`, 1–100 chars)
+  - `visionModel`: `"qwen/qwen3.8-27b"` (`string`, 1–100 chars)
+  - `fallbackModel`: `"openai/gpt-oss-20b"` (`string`, 1–100 chars)
+  - `updatedByEmail`: `"dheeraj.aimit@gmail.com"` (`string`, 3–160 chars)
+  - `updatedAt`: Server timestamp (`timestamp`)
+
+### Interactive Component & State Mapping
+1. **Server Startup & Direct Firestore Sync (`server.ts`)**:
+   - Initializes a server-side Firebase client connected to `ai-studio-engineiq-407c168e-9845-4960-940a-2d2cbbf8a25b`.
+   - Exposes `GET /api/ai-config/sync-payload` (returns the encoded key payload when `process.env.GROQ_API_KEY` is present on the server so the authenticated owner session can commit it to Firestore with `serverTimestamp()`) and `POST /api/ai-config/hydrate` (accepts the encoded key read from Firestore `/system_ai_config/groq_runtime` when hosted without `process.env.GROQ_API_KEY`, verifies its prefix/format, and stores it in `cachedFirestoreGroqKey`).
+2. **Background Firestore Hydration & Bootstrap (`src/services/firebase.ts`)**:
+   - `syncAndHydrateAIConfigWithFirestore()` runs automatically in the background:
+     - If the server already has `process.env.GROQ_API_KEY` and the signed-in user is the platform owner (`dheeraj.aimit@gmail.com`), it writes/updates `/system_ai_config/groq_runtime` in Firestore.
+     - If the hosted server reports `hasGroqKey: false` in `/api/health`, it reads `/system_ai_config/groq_runtime` from Firestore and posts the encoded payload to `/api/ai-config/hydrate` so the hosted backend immediately activates live Groq routing.
+3. **Hardened Firestore Security Rules (`firestore.rules` & `firestore.rules.test.ts`)**:
+   - Adds `isValidSystemAIConfigDoc(data)` to `firestore.rules`, validates via `@firebase/eslint-plugin-security-rules`, and deploys the updated rules to Firebase via `DeployRules`.
