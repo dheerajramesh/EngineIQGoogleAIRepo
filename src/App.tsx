@@ -51,6 +51,7 @@ import { AboutModal } from "./components/AboutModal";
 import { LoginView } from "./components/LoginView";
 import { FleetDashboard } from "./components/FleetDashboard";
 import { EngineeringSpecsSheet } from "./components/EngineeringSpecsSheet";
+import { TechnicalSpecsCutaway } from "./components/TechnicalSpecsCutaway";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { AICopilotDrawer } from "./components/AICopilotDrawer";
 import {
@@ -361,7 +362,7 @@ export default function App() {
 
   // 7. Active Engine Workspace Tab Mode
   const [activeMode, setActiveMode] = useState<AppMode>("explore");
-  const [exploreSubView, setExploreSubView] = useState<"3d" | "cutaway" | "specs">("3d");
+  const [exploreSubView, setExploreSubView] = useState<"3d" | "specs-cutaway">("3d");
   const [partCardSubTab, setPartCardSubTab] = useState<"specs" | "preventive" | "lifetracker" | "history">("specs");
 
   // 8. Live Toast Notification State
@@ -1101,20 +1102,14 @@ export default function App() {
                 3D
               </button>
               <button
-                onClick={() => setExploreSubView("cutaway")}
+                onClick={() => {
+                  setExploreSubView("specs-cutaway");
+                }}
                 className={`px-2.5 py-1 rounded-lg transition font-bold ${
-                  exploreSubView === "cutaway" ? "bg-sky-500 text-white shadow" : "text-slate-400 hover:text-white"
+                  exploreSubView === "specs-cutaway" ? "bg-sky-500 text-white shadow" : "text-slate-400 hover:text-white"
                 }`}
               >
-                Cutaway
-              </button>
-              <button
-                onClick={() => setExploreSubView("specs")}
-                className={`px-2.5 py-1 rounded-lg transition font-bold ${
-                  exploreSubView === "specs" ? "bg-sky-500 text-white shadow" : "text-slate-400 hover:text-white"
-                }`}
-              >
-                Specs
+                Specs & Cutaway
               </button>
             </div>
           </div>
@@ -1219,20 +1214,12 @@ export default function App() {
           />
         </div>
       ) : (
-        <main className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+        <main className={`flex-1 flex overflow-hidden relative ${activeMode === "explore" && exploreSubView !== "3d" ? "flex-col" : "flex-col md:flex-row"}`}>
           {/* Left Side Center Stage: 3D Canvas, Cutaway, or Specs */}
-          <div className="w-full md:w-1/2 lg:w-3/5 h-64 md:h-full relative border-b md:border-b-0 md:border-r border-slate-800 shrink-0 overflow-y-auto">
-            {exploreSubView === "cutaway" ? (
-              <div className="w-full h-full bg-[#070b14] p-4">
-                <TechnicalCutaway
-                  selectedPartId={selectedPartId}
-                  onSelectPart={(partId) => setSelectedPartId(partId)}
-                  onSwitchTo3D={() => setExploreSubView("3d")}
-                />
-              </div>
-            ) : exploreSubView === "specs" ? (
-              <div className="w-full h-full bg-[#070b14] p-4 overflow-y-auto">
-                <EngineeringSpecsSheet
+          <div className={`h-full relative overflow-y-auto shrink-0 ${activeMode === "explore" && exploreSubView !== "3d" ? "w-full" : "w-full md:w-1/2 lg:w-3/5 md:h-full border-b md:border-b-0 md:border-r border-slate-800"}`}>
+            {exploreSubView === "specs-cutaway" ? (
+              <div className="w-full h-full bg-[#070b14]">
+                <TechnicalSpecsCutaway
                   selectedPartId={selectedPartId}
                   onSelectPart={(partId) => setSelectedPartId(partId)}
                   onOpenCitation={handleOpenCitation}
@@ -1256,24 +1243,25 @@ export default function App() {
                 theme={theme}
                 isModalOpen={showAboutModal || !!activeDoc}
                 activeMode={activeMode}
-                exploreSubView={exploreSubView}
+                exploreSubView={exploreSubView === "3d" ? "3d" : "specs"}
                 onSelectMode={(mode) => handleModeChange(mode)}
                 onSelectExploreSubView={(subView) => {
                   setActiveMode("explore");
-                  setExploreSubView(subView);
+                  setExploreSubView(subView === "3d" ? "3d" : "specs-cutaway");
                 }}
               />
             )}
           </div>
 
-          {/* Right Side: Tab Panel Views */}
-          <div className="w-full md:w-1/2 lg:w-2/5 h-full overflow-y-auto bg-[#090d16] p-4 md:p-6">
+          {/* Right Side: Tab Panel Views (Hidden when full-screen) */}
+          {!(activeMode === "explore" && exploreSubView !== "3d") && (
+            <div className="w-full md:w-1/2 lg:w-2/5 h-full overflow-y-auto bg-[#090d16] p-4 md:p-6">
             {activeMode === "explore" && (
               <PartCard
                 part={ENGINE_PARTS[selectedPartId] || ENGINE_PARTS.fan_blades}
                 onSelectConnectedPart={(id) => setSelectedPartId(id)}
                 onOpenCitation={handleOpenCitation}
-                onOpenSpecsSheet={() => setExploreSubView("specs")}
+                onOpenSpecsSheet={() => setExploreSubView("specs-cutaway")}
                 historyLogs={componentLogs}
                 onAddLog={handleAddComponentLog}
                 userSession={session}
@@ -1331,6 +1319,7 @@ export default function App() {
               <EvaluationView onOpenCitation={handleOpenCitation} />
             )}
           </div>
+          )}
         </main>
       )}
 

@@ -845,19 +845,6 @@ export function EngineCanvas({
         <div className="h-4 w-px bg-slate-700/80 mx-1 hidden sm:block" />
 
 
-        <button
-          id="tab-mode-incident"
-          onClick={() => onSelectMode?.("incident")}
-          className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg transition font-medium ${
-            activeMode === "incident"
-              ? "bg-sky-500 text-white font-bold shadow-md shadow-sky-500/20"
-              : "text-slate-300 hover:text-white hover:bg-slate-800/80"
-          }`}
-          title="AI-Assisted Incident Intake & Diagnosis"
-        >
-          <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-          <span>Incident Intake</span>
-        </button>
       </div>
 
       {/* Hover Tooltip Bar */}
