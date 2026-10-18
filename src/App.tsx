@@ -40,6 +40,7 @@ import { DUMMY_SCENARIOS } from "./data/scenarios";
 import { formatPartName } from "./logic/rulesEngine";
 import { getDocumentById } from "./logic/retrieval";
 import { EngineCanvas } from "./components/EngineCanvas";
+import { TechnicalCutaway } from "./components/TechnicalCutaway";
 import { PartCard } from "./components/PartCard";
 import { IncidentView } from "./components/IncidentView";
 import { CaseLogView } from "./components/CaseLogView";
@@ -51,7 +52,6 @@ import { LoginView } from "./components/LoginView";
 import { FleetDashboard } from "./components/FleetDashboard";
 import { EngineeringSpecsSheet } from "./components/EngineeringSpecsSheet";
 import { ThemeToggle } from "./components/ThemeToggle";
-import { SearchGroundingModal } from "./components/SearchGroundingModal";
 import { AICopilotDrawer } from "./components/AICopilotDrawer";
 import {
   Compass,
@@ -361,7 +361,7 @@ export default function App() {
 
   // 7. Active Engine Workspace Tab Mode
   const [activeMode, setActiveMode] = useState<AppMode>("explore");
-  const [exploreSubView, setExploreSubView] = useState<"3d" | "specs">("3d");
+  const [exploreSubView, setExploreSubView] = useState<"3d" | "cutaway" | "specs">("3d");
   const [partCardSubTab, setPartCardSubTab] = useState<"specs" | "preventive" | "lifetracker" | "history">("specs");
 
   // 8. Live Toast Notification State
@@ -431,8 +431,6 @@ export default function App() {
   // 10. Modals & Multi-Turn AI Copilot Drawer
   const [activeDoc, setActiveDoc] = useState<DocSnippet | null>(null);
   const [showAboutModal, setShowAboutModal] = useState(false);
-  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
-  const [searchModalQuery, setSearchModalQuery] = useState("");
   const [isCopilotDrawerOpen, setIsCopilotDrawerOpen] = useState(false);
   const [copilotInitialPrompt, setCopilotInitialPrompt] = useState<string>("");
 
@@ -1126,6 +1124,34 @@ export default function App() {
             <span className="text-[10px] font-mono text-slate-400 hidden xl:inline">
               Base: {currentEngine.location}
             </span>
+
+            {/* Segmented Switch: 3D | Cutaway | Specs */}
+            <div className="hidden xl:inline-flex items-center p-1 bg-slate-900/90 rounded-xl border border-slate-800 text-xs font-mono shadow-sm ml-2">
+              <button
+                onClick={() => setExploreSubView("3d")}
+                className={`px-2.5 py-1 rounded-lg transition font-bold ${
+                  exploreSubView === "3d" ? "bg-sky-500 text-white shadow" : "text-slate-400 hover:text-white"
+                }`}
+              >
+                3D
+              </button>
+              <button
+                onClick={() => setExploreSubView("cutaway")}
+                className={`px-2.5 py-1 rounded-lg transition font-bold ${
+                  exploreSubView === "cutaway" ? "bg-sky-500 text-white shadow" : "text-slate-400 hover:text-white"
+                }`}
+              >
+                Cutaway
+              </button>
+              <button
+                onClick={() => setExploreSubView("specs")}
+                className={`px-2.5 py-1 rounded-lg transition font-bold ${
+                  exploreSubView === "specs" ? "bg-sky-500 text-white shadow" : "text-slate-400 hover:text-white"
+                }`}
+              >
+                Specs
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1191,50 +1217,8 @@ export default function App() {
         </div>
       </header>
 
-      {/* 3. Main Workspace: Split Screen or Full Engineering Specs Sheet or Preventive Maintenance Schedule */}
-      {activeMode === "explore" && exploreSubView === "specs" ? (
-        <div className="flex-1 overflow-y-auto bg-[#090d16] p-4 md:p-6">
-          <div className="max-w-7xl mx-auto mb-4 flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-slate-900 border border-slate-800 shadow-md">
-            <div className="flex items-center gap-2 text-xs font-mono">
-              <span className="text-slate-400">Explore View:</span>
-              <div className="inline-flex rounded-lg bg-slate-950 p-0.5 border border-slate-800">
-                <button
-                  onClick={() => setExploreSubView("3d")}
-                  className="flex items-center gap-1.5 px-3 py-1 rounded-md text-slate-400 hover:text-white transition"
-                >
-                  <Cpu className="w-3.5 h-3.5" />
-                  <span>3D Assembly</span>
-                </button>
-                <button
-                  onClick={() => setExploreSubView("specs")}
-                  className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-sky-500 text-white font-semibold shadow transition"
-                >
-                  <Ruler className="w-3.5 h-3.5" />
-                  <span>Engineering Specs & Cutaway</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="text-xs font-mono text-slate-400 flex items-center gap-2">
-              <span className="hidden sm:inline">PW1100G-JM 1-G-3-8-2-3 GTF Baseline</span>
-              <span className="hidden sm:inline">•</span>
-              <button
-                onClick={() => setExploreSubView("3d")}
-                className="text-sky-400 hover:text-sky-300 hover:underline flex items-center gap-1"
-              >
-                <span>Return to 3D Assembly</span> &rarr;
-              </button>
-            </div>
-          </div>
-
-          <EngineeringSpecsSheet
-            selectedPartId={selectedPartId}
-            onSelectPart={(partId) => setSelectedPartId(partId)}
-            onOpenCitation={handleOpenCitation}
-            onSwitchTo3D={() => setExploreSubView("3d")}
-          />
-        </div>
-      ) : activeMode === "preventive" ? (
+      {/* 3. Main Workspace: Fixed Layout Split Screen (Left: 3D Canvas / Cutaway / Specs, Right: Persistent PartCard) */}
+      {activeMode === "preventive" ? (
         <div className="flex-1 overflow-y-auto bg-[#090d16] flex flex-col">
           <div className="px-4 pt-4 sm:px-6 flex items-center justify-between text-xs font-mono text-slate-400 border-b border-slate-800 pb-3">
             <div className="flex items-center gap-2">
@@ -1271,31 +1255,50 @@ export default function App() {
         </div>
       ) : (
         <main className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
-          {/* Left Side: Interactive 3D Turbofan Engine Canvas (reused seamlessly) */}
-          <div className="w-full md:w-1/2 lg:w-3/5 h-64 md:h-full relative border-b md:border-b-0 md:border-r border-slate-800 shrink-0">
-            <EngineCanvas
-              selectedPartId={selectedPartId}
-              onSelectPart={(partId) => {
-                setSelectedPartId(partId);
-                if (activeMode === "incident") {
+          {/* Left Side Center Stage: 3D Canvas, Cutaway, or Specs */}
+          <div className="w-full md:w-1/2 lg:w-3/5 h-64 md:h-full relative border-b md:border-b-0 md:border-r border-slate-800 shrink-0 overflow-y-auto">
+            {exploreSubView === "cutaway" ? (
+              <div className="w-full h-full bg-[#070b14] p-4">
+                <TechnicalCutaway
+                  selectedPartId={selectedPartId}
+                  onSelectPart={(partId) => setSelectedPartId(partId)}
+                  onSwitchTo3D={() => setExploreSubView("3d")}
+                />
+              </div>
+            ) : exploreSubView === "specs" ? (
+              <div className="w-full h-full bg-[#070b14] p-4 overflow-y-auto">
+                <EngineeringSpecsSheet
+                  selectedPartId={selectedPartId}
+                  onSelectPart={(partId) => setSelectedPartId(partId)}
+                  onOpenCitation={handleOpenCitation}
+                  onSwitchTo3D={() => setExploreSubView("3d")}
+                />
+              </div>
+            ) : (
+              <EngineCanvas
+                selectedPartId={selectedPartId}
+                onSelectPart={(partId) => {
+                  setSelectedPartId(partId);
+                  if (activeMode === "incident") {
+                    setActiveMode("explore");
+                    setExploreSubView("3d");
+                  }
+                }}
+                partStatuses={partStatuses}
+                allowMultiSelect={false}
+                multiSelectedParts={multiSelectedParts}
+                onToggleMultiSelectPart={handleToggleMultiSelect}
+                theme={theme}
+                isModalOpen={showAboutModal || !!activeDoc}
+                activeMode={activeMode}
+                exploreSubView={exploreSubView}
+                onSelectMode={(mode) => handleModeChange(mode)}
+                onSelectExploreSubView={(subView) => {
                   setActiveMode("explore");
-                  setExploreSubView("3d");
-                }
-              }}
-              partStatuses={partStatuses}
-              allowMultiSelect={false}
-              multiSelectedParts={multiSelectedParts}
-              onToggleMultiSelectPart={handleToggleMultiSelect}
-              theme={theme}
-              isModalOpen={showAboutModal || !!activeDoc || isSearchModalOpen}
-              activeMode={activeMode}
-              exploreSubView={exploreSubView}
-              onSelectMode={(mode) => handleModeChange(mode)}
-              onSelectExploreSubView={(subView) => {
-                setActiveMode("explore");
-                setExploreSubView(subView);
-              }}
-            />
+                  setExploreSubView(subView);
+                }}
+              />
+            )}
           </div>
 
           {/* Right Side: Tab Panel Views */}
@@ -1327,48 +1330,44 @@ export default function App() {
               />
             )}
 
-          {activeMode === "incident" && (
-            <IncidentView
-              onUpdate3DStatuses={(statuses) => setPartStatuses(statuses)}
-              onOpenCitation={handleOpenCitation}
-              onSaveCaseLog={handleSaveCaseLog}
-              onSelectPartIn3D={(id) => {
-                setSelectedPartId(id);
-                setActiveMode("explore");
-                setExploreSubView("3d");
-              }}
-              defaultAircraftType={currentEngine.aircraftType || "A320-family, illustrative"}
-              defaultEnginePosition={currentEngine.enginePosition}
-              currentEngineId={currentEngine.id}
-              tailNumber={currentEngine.tailNumber}
-              userRole={session.role}
-              userName={session.name}
-              userBadge={session.badge}
-              activeFlight={activeFlight || undefined}
-              openCases={caseLogs.filter((c) => currentEngine.openCaseIds.includes(c.id))}
-              onOpenSearchGrounding={(q) => {
-                if (q) setSearchModalQuery(q);
-                setIsSearchModalOpen(true);
-              }}
-            />
-          )}
+            {activeMode === "incident" && (
+              <IncidentView
+                onUpdate3DStatuses={(statuses) => setPartStatuses(statuses)}
+                onOpenCitation={handleOpenCitation}
+                onSaveCaseLog={handleSaveCaseLog}
+                onSelectPartIn3D={(id) => {
+                  setSelectedPartId(id);
+                  setActiveMode("explore");
+                  setExploreSubView("3d");
+                }}
+                defaultAircraftType={currentEngine.aircraftType || "A320-family, illustrative"}
+                defaultEnginePosition={currentEngine.enginePosition}
+                currentEngineId={currentEngine.id}
+                tailNumber={currentEngine.tailNumber}
+                userRole={session.role}
+                userName={session.name}
+                userBadge={session.badge}
+                activeFlight={activeFlight || undefined}
+                openCases={caseLogs.filter((c) => currentEngine.openCaseIds.includes(c.id))}
+              />
+            )}
 
-          {activeMode === "caselog" && (
-            <CaseLogView
-              caseLogs={caseLogs}
-              onClearLogs={handleClearLogs}
-              onOpenCitation={handleOpenCitation}
-              currentEngineId={currentEngine.id}
-              tailNumber={currentEngine.tailNumber}
-            />
-          )}
+            {activeMode === "caselog" && (
+              <CaseLogView
+                caseLogs={caseLogs}
+                onClearLogs={handleClearLogs}
+                onOpenCitation={handleOpenCitation}
+                currentEngineId={currentEngine.id}
+                tailNumber={currentEngine.tailNumber}
+              />
+            )}
 
-          {activeMode === "evaluation" && (
-            <EvaluationView onOpenCitation={handleOpenCitation} />
-          )}
-        </div>
-      </main>
-    )}
+            {activeMode === "evaluation" && (
+              <EvaluationView onOpenCitation={handleOpenCitation} />
+            )}
+          </div>
+        </main>
+      )}
 
       {/* 5. Global Modals & Multi-Turn AI Copilot Drawer */}
       <AICopilotDrawer
@@ -1401,11 +1400,6 @@ export default function App() {
       />
       <CitationModal doc={activeDoc} onClose={() => setActiveDoc(null)} />
       <AboutModal isOpen={showAboutModal} onClose={() => setShowAboutModal(false)} />
-      <SearchGroundingModal
-        isOpen={isSearchModalOpen}
-        onClose={() => setIsSearchModalOpen(false)}
-        initialQuery={searchModalQuery}
-      />
       <div className="py-2 text-center text-[10px] text-slate-500 font-mono border-t border-slate-900/80 bg-slate-950/40 select-none shrink-0">
         ILLUSTRATIVE DATA. NOT FOR OPERATIONAL USE. Decision support only. Certifying engineer sign-off required.
       </div>

@@ -49,7 +49,7 @@ export function ComponentLifeTracker({
 }: ComponentLifeTrackerProps) {
   // Component specific cycle override state
   const [componentCycleOverride, setComponentCycleOverride] = useState<number | null>(null);
-  const [showAllPartsTable, setShowAllPartsTable] = useState(false);
+  const [showAllPartsTable, setShowAllPartsTable] = useState(true);
 
   // Is this part life-limited?
   const llpInfo = LIFE_LIMITED_PARTS.find((p) => p.id === part.id);
@@ -76,18 +76,25 @@ export function ComponentLifeTracker({
 
   return (
     <div className="space-y-4 animate-fade-in text-slate-200">
-      {/* 1. Regulatory Compliance Banner */}
-      <div className="p-3.5 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs flex items-center justify-between shadow-lg">
-        <div className="flex items-center gap-2">
-          <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
-          <span className="font-semibold text-[11px] sm:text-xs">
-            Mandatory LLP Control per FAA FAR 33.70 / EASA CS-E 515. Life is measured in operating cycles, not calendar time.
+      {/* 1. Regulatory Compliance / On-Condition Banner */}
+      {!isLLP ? (
+        <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 text-slate-300 text-xs flex items-center gap-2 shadow-sm">
+          <Info className="w-4 h-4 text-sky-400 shrink-0" />
+          <span>On-condition. No cycle limit.</span>
+        </div>
+      ) : (
+        <div className="p-3.5 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs flex items-center justify-between shadow-lg">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
+            <span className="font-semibold text-[11px] sm:text-xs">
+              Mandatory LLP Control per FAA FAR 33.70 / EASA CS-E 515. Life is measured in operating cycles, not calendar time.
+            </span>
+          </div>
+          <span className="text-[10px] font-mono text-amber-300 uppercase px-2 py-0.5 rounded bg-amber-900/60 border border-amber-700/50 shrink-0 hidden sm:inline">
+            LLP Subsystem
           </span>
         </div>
-        <span className="text-[10px] font-mono text-amber-300 uppercase px-2 py-0.5 rounded bg-amber-900/60 border border-amber-700/50 shrink-0 hidden sm:inline">
-          {isLLP ? "LLP Subsystem" : "On-Condition"}
-        </span>
-      </div>
+      )}
 
       {/* 2. Component Life Status Hero Card */}
       <div className="p-4 rounded-xl bg-gradient-to-r from-slate-900 via-slate-900/95 to-slate-950 border border-slate-800 shadow-xl space-y-4">

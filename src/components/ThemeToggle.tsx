@@ -15,7 +15,7 @@ export function ThemeToggle({ theme, onToggle, className = "" }: ThemeToggleProp
     <button
       id="btn-theme-toggle"
       onClick={onToggle}
-      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-mono font-semibold transition cursor-pointer select-none ${
+      className={`p-2 rounded-lg border text-xs font-mono font-semibold transition cursor-pointer select-none flex items-center justify-center ${
         isLight
           ? "bg-white text-slate-800 border-slate-300 hover:bg-slate-100 shadow-sm"
           : "bg-slate-900/90 text-slate-300 border-slate-700 hover:text-white hover:bg-slate-800 shadow"
@@ -28,15 +28,9 @@ export function ThemeToggle({ theme, onToggle, className = "" }: ThemeToggleProp
       aria-label="Toggle Whiteboard / Dark HUD Theme"
     >
       {isLight ? (
-        <>
-          <Moon className="w-3.5 h-3.5 text-indigo-600" />
-          <span className="hidden sm:inline">Dark HUD</span>
-        </>
+        <Moon className="w-4 h-4 stroke-[2.5] text-indigo-600" />
       ) : (
-        <>
-          <Sun className="w-3.5 h-3.5 text-amber-400" />
-          <span className="hidden sm:inline">Whiteboard</span>
-        </>
+        <Sun className="w-4 h-4 stroke-[2.5] text-amber-400" />
       )}
     </button>
   );

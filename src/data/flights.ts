@@ -32,8 +32,8 @@ export const INDIGO_FLIGHTS: FlightInfo[] = [
     pilotName: "Capt. Rohan Sharma / FO S. Deshmukh",
     crewReport:
       "Captain Logbook: Severe flock bird ingestion on takeoff climb on No.1 Engine. Peak N1 vibration reached 4.8 units. Walkaround confirmed 12.0 mm through-crack on Fan Blade #8 and 4.0 mm containment ring dent.",
-    engine1Id: "VT-DEM2-ENG1", // 14,200 cyc, action_required
-    engine2Id: "VT-DEM2-ENG2", // 13,800 cyc, normal
+    engine1Id: "VT-IND2-ENG1", // 14,200 cyc, action_required
+    engine2Id: "VT-IND2-ENG2", // 13,800 cyc, normal
     overallStatus: "action_required",
     activeAlertCount: 1,
   },

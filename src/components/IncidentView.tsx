@@ -42,7 +42,6 @@ import {
   GraduationCap,
   ArrowRight,
   AlertTriangle,
-  Globe,
   Search,
 } from "lucide-react";
 
@@ -61,7 +60,6 @@ interface IncidentViewProps {
   activeFlight?: FlightInfo;
   openCases?: CaseLogEntry[];
   onGoToTraining?: () => void;
-  onOpenSearchGrounding?: (initialQuery?: string) => void;
 }
 
 export function IncidentView({
@@ -79,7 +77,6 @@ export function IncidentView({
   activeFlight,
   openCases = [],
   onGoToTraining,
-  onOpenSearchGrounding,
 }: IncidentViewProps) {
   // Form State
   const [aircraftType, setAircraftType] = useState(defaultAircraftType);
@@ -360,18 +357,7 @@ STATUS: Illustrative assessment. Certifying engineer sign-off required.`;
 
   return (
     <div className="space-y-5 text-slate-200 animate-fade-in pb-12">
-      {/* Permanent Required Compliance Banner */}
-      <div className="p-3.5 rounded-xl bg-amber-950/40 border border-amber-500/50 text-amber-200 text-xs flex items-center justify-between shadow-lg">
-        <div className="flex items-center gap-2.5">
-          <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0" />
-          <span className="font-semibold tracking-wide">
-            ILLUSTRATIVE DATA. NOT FOR OPERATIONAL USE. Decision support only. Certifying engineer sign-off required.
-          </span>
-        </div>
-        <span className="hidden sm:inline-block font-mono text-[10px] text-amber-400/80 uppercase px-2 py-0.5 rounded bg-amber-900/40 border border-amber-700/50">
-          Part-66 / FAA A&P Mandatory
-        </span>
-      </div>
+
 
       {/* If Trainee role, display guidance banner indicating practice simulation mode */}
       {userRole === "Trainee" && (
@@ -1092,51 +1078,6 @@ STATUS: Illustrative assessment. Certifying engineer sign-off required.`;
             )}
           </div>
 
-          {/* Live FAA & OEM Search Grounding Cross-Check */}
-          <div className="p-4 rounded-xl bg-slate-900/90 border border-sky-500/40 space-y-3 shadow-lg">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-800">
-              <div className="flex items-center gap-2">
-                <Globe className="w-4 h-4 text-sky-400" />
-                <span className="text-xs font-mono font-bold text-white uppercase tracking-wider">
-                  Cross-Check Live FAA/EASA ADs & OEM SBs (Google Search Grounding)
-                </span>
-              </div>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-sky-950 text-sky-400 border border-sky-800 w-fit">
-                gemini-3.8-flash • googleSearch
-              </span>
-            </div>
-
-            <p className="text-xs text-slate-300 font-sans leading-relaxed">
-              Verify whether current findings ({confirmedFindings.length > 0 ? confirmedFindings.map(f => `${formatPartName(f.part)} ${formatDamageType(f.damageType)}`).join(", ") : "engine event"}) are subject to newly published Airworthiness Directives, repetitive ultrasonic inspection mandates, or emergency fleet notices.
-            </p>
-
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <button
-                type="button"
-                id="btn-run-incident-search-grounding"
-                onClick={() => {
-                  const partsStr = confirmedFindings.map(f => formatPartName(f.part)).join(" ");
-                  const evType = extractedData?.eventType ? formatDamageType(extractedData.eventType) : "inspection";
-                  const query = `Latest FAA EASA Airworthiness Directives on PW1100G ${partsStr || "fan blade"} ${evType} limits`;
-                  onOpenSearchGrounding?.(query);
-                }}
-                className="px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-600 text-white font-mono font-bold text-xs uppercase tracking-wider transition flex items-center gap-1.5 shadow-md shadow-sky-950/40 cursor-pointer"
-              >
-                <Search className="w-3.5 h-3.5" />
-                <span>Search Web for ADs on These Findings</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  onOpenSearchGrounding?.("Pratt Whitney PW1100G powder metal disk inspections FAA AD 2024-0014 limits");
-                }}
-                className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 text-xs font-mono transition cursor-pointer"
-              >
-                Check Powder Metal AD
-              </button>
-            </div>
-          </div>
 
           {/* Draft Tech Log Entry with Copy Button */}
           <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2.5">
@@ -1306,6 +1247,9 @@ STATUS: Illustrative assessment. Certifying engineer sign-off required.`;
           </div>
         </div>
       )}
+      <div className="py-2 text-center text-[10px] text-slate-500 font-mono border-t border-slate-900/80 bg-slate-950/40 select-none shrink-0 mt-8">
+        ILLUSTRATIVE DATA. NOT FOR OPERATIONAL USE. Decision support only. Certifying engineer sign-off required.
+      </div>
     </div>
   );
 }

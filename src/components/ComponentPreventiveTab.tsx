@@ -50,8 +50,9 @@ export const ComponentPreventiveTab: React.FC<ComponentPreventiveTabProps> = ({
   const [signOffModalTask, setSignOffModalTask] = useState<PreventiveMaintenanceTask | null>(null);
 
   // Sign-off form state
-  const [engineerName, setEngineerName] = useState("");
-  const [engineerLicense, setEngineerLicense] = useState("");
+  const [engineerName, setEngineerName] = useState("Vikram Malhotra");
+  const [engineerLicense, setEngineerLicense] = useState("CAR-66/AME-48921");
+  const [engineerPin, setEngineerPin] = useState("4892");
   const [station, setStation] = useState("DEL Line Maintenance Bay");
   const [findings, setFindings] = useState<"no_defects" | "within_limits" | "minor_monitoring_required">("no_defects");
   const [remarks, setRemarks] = useState("");
@@ -64,8 +65,9 @@ export const ComponentPreventiveTab: React.FC<ComponentPreventiveTabProps> = ({
 
   const handleOpenSignOff = (task: PreventiveMaintenanceTask) => {
     setSignOffModalTask(task);
-    setEngineerName("");
-    setEngineerLicense("");
+    setEngineerName("Vikram Malhotra");
+    setEngineerLicense("CAR-66/AME-48921");
+    setEngineerPin("");
     setRemarks(`Completed ${task.title} per ${task.taskCode}. All criteria verified satisfactory.`);
     setFormError("");
   };
@@ -73,7 +75,15 @@ export const ComponentPreventiveTab: React.FC<ComponentPreventiveTabProps> = ({
   const handleSubmitSignOff = (e: React.FormEvent) => {
     e.preventDefault();
     if (!engineerName.trim() || !engineerLicense.trim()) {
-      setFormError("Engineer name and AME license number are required.");
+      setFormError("Engineer name and DGCA CAR-66 license number are required.");
+      return;
+    }
+    if (!engineerLicense.startsWith("CAR-66/")) {
+      setFormError("Invalid license format. Must follow Indian DGCA CAR-66 format (e.g. CAR-66/AME-48921).");
+      return;
+    }
+    if (!engineerPin || engineerPin.length !== 4) {
+      setFormError("Valid 4-digit security authorization PIN is required for CRS sign-off.");
       return;
     }
     if (!signOffModalTask) return;
@@ -240,14 +250,16 @@ export const ComponentPreventiveTab: React.FC<ComponentPreventiveTabProps> = ({
                       })()}
                     </div>
 
-                    <button
-                      onClick={() => handleOpenSignOff(task)}
-                      className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-bold shadow transition"
-                      title="Log completion & sign off this preventive inspection"
-                    >
-                      <PlusCircle className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">Sign Off</span>
-                    </button>
+                    {(isOverdue || isDueSoon) && (
+                      <button
+                        onClick={() => handleOpenSignOff(task)}
+                        className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-bold shadow transition"
+                        title="Log completion & sign off this preventive inspection"
+                      >
+                        <PlusCircle className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Sign Off</span>
+                      </button>
+                    )}
                   </div>
 
                   {/* Operational Countdown Metrics */}
@@ -257,8 +269,8 @@ export const ComponentPreventiveTab: React.FC<ComponentPreventiveTabProps> = ({
                       <span className="font-mono font-bold text-slate-200">
                         {task.nextDueCycles.toLocaleString()} CSN
                       </span>
-                      <span className={`block text-[10px] ${cyclesRemaining <= 200 ? "text-amber-400 font-bold" : "text-slate-400"}`}>
-                        ({cyclesRemaining > 0 ? `${cyclesRemaining} cyc left` : "0 cyc left"})
+                      <span className={`block text-[10px] ${isOverdue ? "text-rose-400 font-bold" : cyclesRemaining <= 200 ? "text-amber-400 font-bold" : "text-slate-400"}`}>
+                        ({isOverdue ? `Overdue by ${Math.abs(cyclesRemaining)} cycles` : cyclesRemaining > 0 ? `${cyclesRemaining} cyc left` : "0 cyc left"})
                       </span>
                     </div>
 
@@ -429,14 +441,14 @@ export const ComponentPreventiveTab: React.FC<ComponentPreventiveTabProps> = ({
 
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                    DGCA / EASA License Badge # *
+                    DGCA CAR-66 License # *
                   </label>
                   <input
                     type="text"
                     required
                     value={engineerLicense}
                     onChange={(e) => setEngineerLicense(e.target.value)}
-                    placeholder="e.g. AME-DEL-64920"
+                    placeholder="CAR-66/AME-48921"
                     className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white placeholder-slate-600 focus:outline-none focus:border-sky-500 font-mono"
                   />
                 </div>
@@ -445,12 +457,27 @@ export const ComponentPreventiveTab: React.FC<ComponentPreventiveTabProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    4-Digit CRS Authorization PIN *
+                  </label>
+                  <input
+                    type="password"
+                    maxLength={4}
+                    required
+                    value={engineerPin}
+                    onChange={(e) => setEngineerPin(e.target.value)}
+                    placeholder="••••"
+                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white placeholder-slate-600 focus:outline-none focus:border-sky-500 font-mono text-center tracking-widest text-lg"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
                     Inspection Line Station
                   </label>
                   <select
                     value={station}
                     onChange={(e) => setStation(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-sky-500"
+                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-sky-500 text-xs"
                   >
                     <option value="DEL Line Maintenance Bay">Delhi (DEL) Line Maintenance</option>
                     <option value="BOM Line Maintenance Bay">Mumbai (BOM) Line Maintenance</option>
@@ -459,21 +486,21 @@ export const ComponentPreventiveTab: React.FC<ComponentPreventiveTabProps> = ({
                     <option value="HYD Base Hangar 2">Hyderabad (HYD) Base Hangar</option>
                   </select>
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                    Inspection Findings
-                  </label>
-                  <select
-                    value={findings}
-                    onChange={(e) => setFindings(e.target.value as any)}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-sky-500"
-                  >
-                    <option value="no_defects">Nil Defects / Satisfactory</option>
-                    <option value="within_limits">Within AMM Chapter Limits</option>
-                    <option value="minor_monitoring_required">Minor Wear (Monitoring Required)</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                  Inspection Findings
+                </label>
+                <select
+                  value={findings}
+                  onChange={(e) => setFindings(e.target.value as any)}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-sky-500 text-xs"
+                >
+                  <option value="no_defects">Nil Defects / Satisfactory</option>
+                  <option value="within_limits">Within AMM Chapter Limits</option>
+                  <option value="minor_monitoring_required">Minor Wear (Monitoring Required)</option>
+                </select>
               </div>
 
               <div>

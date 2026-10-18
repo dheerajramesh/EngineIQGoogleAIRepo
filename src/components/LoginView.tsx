@@ -159,23 +159,7 @@ export function LoginView({ onLogin, theme, onToggleTheme, roster = [] }: LoginV
 
   return (
     <div className="min-h-screen w-full bg-[#030712] text-slate-100 flex flex-col justify-between selection:bg-sky-500/30 selection:text-white font-sans">
-      {/* Permanent Required Banner */}
-      <div className="w-full bg-amber-500/10 border-b border-amber-500/30 px-4 py-2 flex items-center justify-between text-xs text-amber-300 select-none z-30 shrink-0 font-mono">
-        <div className="flex items-center gap-2">
-          <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
-          <span className="font-semibold tracking-wide">
-            ILLUSTRATIVE DATA. NOT FOR OPERATIONAL USE. Decision support only. Certifying engineer sign-off required.
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          {theme && onToggleTheme && (
-            <ThemeToggle theme={theme} onToggle={onToggleTheme} />
-          )}
-          <span className="hidden sm:inline text-[11px] text-amber-400/80">
-            IndiGo Airline M&E Demonstration
-          </span>
-        </div>
-      </div>
+
 
       {/* Hero Presentation & Login Section */}
       <div className="flex-1 flex items-center justify-center p-4 sm:p-6 md:p-10 relative overflow-hidden">
@@ -412,6 +396,10 @@ export function LoginView({ onLogin, theme, onToggleTheme, roster = [] }: LoginV
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="py-2 text-center text-[10px] text-slate-500 font-mono border-t border-slate-900/80 bg-slate-950/40 select-none shrink-0">
+        ILLUSTRATIVE DATA. NOT FOR OPERATIONAL USE. Decision support only. Certifying engineer sign-off required.
       </div>
 
       {/* Footer */}

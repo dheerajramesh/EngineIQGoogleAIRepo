@@ -11,7 +11,6 @@ import { FlightStatusView } from "./FlightStatusView";
 import { SimulateIncidentModal } from "./SimulateIncidentModal";
 import { EvaluationView } from "./EvaluationView";
 import { ThemeToggle } from "./ThemeToggle";
-import { SearchGroundingModal } from "./SearchGroundingModal";
 import { RBACManagerModal } from "./RBACManagerModal";
 import {
   ShieldAlert,
@@ -100,7 +99,7 @@ export function FleetDashboard({
   }, [initialFlightNumber]);
 
   // Active Dashboard Level Tab: "flights" | "engines" | "fleet_caselog" | "evaluation"
-  const [dashboardTab, setDashboardTab] = useState<"flights" | "engines" | "fleet_caselog" | "evaluation">("flights");
+  const [dashboardTab, setDashboardTab] = useState<"flights" | "engines">("flights");
 
   // Flight Filters
   const [flightStationFilter, setFlightStationFilter] = useState<string>("all");
@@ -121,9 +120,6 @@ export function FleetDashboard({
   // Simulate Incident Modal state
   const [isSimulateModalOpen, setIsSimulateModalOpen] = useState(false);
 
-  // Search Grounding Modal state (gemini-3.8-flash with googleSearch)
-  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
-  const [searchModalInitialQuery, setSearchModalInitialQuery] = useState("");
 
   // RBAC Roster & Engineer Tail Assignment Modal state
   const [isRBACModalOpen, setIsRBACModalOpen] = useState(false);
@@ -357,18 +353,7 @@ export function FleetDashboard({
 
   return (
     <div className="min-h-screen w-full bg-[#050a14] text-slate-100 flex flex-col font-sans select-none">
-      {/* 1. Permanent Compliance Banner */}
-      <div className="w-full bg-amber-500/10 border-b border-amber-500/30 px-4 py-1.5 flex items-center justify-between text-xs text-amber-300 select-none z-30 shrink-0 font-mono">
-        <div className="flex items-center gap-2">
-          <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
-          <span className="font-semibold tracking-wide">
-            ILLUSTRATIVE DATA. NOT FOR OPERATIONAL USE. Decision support only. Certifying engineer sign-off required.
-          </span>
-        </div>
-        <div className="hidden sm:flex items-center gap-2 text-[11px] text-amber-400/80">
-          <span>IndiGo Airlines Maintenance & Engineering Fleet Portal</span>
-        </div>
-      </div>
+
 
       {/* 2. Persistent Navigation Header */}
       <header className="h-16 bg-slate-950/95 border-b border-slate-800 px-4 sm:px-6 flex items-center justify-between z-20 shrink-0">
@@ -423,32 +408,6 @@ export function FleetDashboard({
               <Cpu className="w-3.5 h-3.5" />
               <span>Fleet Engines ({rbacEngines.length})</span>
             </button>
-
-            <button
-              id="tab-dashboard-caselog"
-              onClick={() => setDashboardTab("fleet_caselog")}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg transition font-medium ${
-                dashboardTab === "fleet_caselog"
-                  ? "bg-sky-500 text-white font-bold shadow"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>Case Log ({filteredCases.length})</span>
-            </button>
-
-            <button
-              id="tab-dashboard-evaluation"
-              onClick={() => setDashboardTab("evaluation")}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg transition font-medium ${
-                dashboardTab === "evaluation"
-                  ? "bg-sky-500 text-white font-bold shadow"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              <Award className="w-3.5 h-3.5 text-amber-400" />
-              <span>Evaluation (8/8)</span>
-            </button>
           </nav>
 
           {/* RBAC & Engineer Tail Assignment Console Button */}
@@ -479,20 +438,6 @@ export function FleetDashboard({
             </button>
           )}
 
-          {/* Live AD & OEM Search Grounding Button (Google Search Grounding) */}
-          <button
-            id="btn-open-search-grounding"
-            onClick={() => {
-              setSearchModalInitialQuery("Latest FAA and EASA Airworthiness Directives on Pratt Whitney PW1100G powder metal HPC disks inspection intervals");
-              setIsSearchModalOpen(true);
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-950/90 hover:bg-sky-900/90 text-sky-300 hover:text-white border border-sky-800 text-xs font-mono font-bold transition cursor-pointer shadow-sm"
-            title="Search live FAA/EASA Airworthiness Directives and OEM Service Bulletins with Google Search Grounding"
-          >
-            <Globe className="w-3.5 h-3.5 text-sky-400 animate-pulse" />
-            <span className="hidden lg:inline">Live AD Search</span>
-            <span className="lg:hidden">ADs</span>
-          </button>
 
           {/* Whiteboard / Dark HUD Toggle */}
           {theme && onToggleTheme && (
@@ -542,22 +487,6 @@ export function FleetDashboard({
           }`}
         >
           Engines ({engines.length})
-        </button>
-        <button
-          onClick={() => setDashboardTab("fleet_caselog")}
-          className={`px-3 py-1 rounded whitespace-nowrap ${
-            dashboardTab === "fleet_caselog" ? "bg-sky-500 text-white font-bold" : "text-slate-400"
-          }`}
-        >
-          Cases ({caseLogs.length})
-        </button>
-        <button
-          onClick={() => setDashboardTab("evaluation")}
-          className={`px-3 py-1 rounded whitespace-nowrap ${
-            dashboardTab === "evaluation" ? "bg-sky-500 text-white font-bold" : "text-slate-400"
-          }`}
-        >
-          Eval (8/8)
         </button>
       </div>
 
@@ -1062,73 +991,6 @@ export function FleetDashboard({
             </div>
           </div>
         )}
-
-        {/* ========================================================================= */}
-        {/* TAB 3: FLEET CASE LOG */}
-        {/* ========================================================================= */}
-        {dashboardTab === "fleet_caselog" && (
-          <div className="space-y-6 animate-fade-in">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-900/90 p-3 rounded-xl border border-slate-800">
-              <span className="text-xs font-mono font-bold text-white uppercase">
-                Fleet Case Log & Sign-Offs ({filteredCases.length})
-              </span>
-              <div className="relative min-w-[240px]">
-                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  value={caseSearchQuery}
-                  onChange={(e) => setCaseSearchQuery(e.target.value)}
-                  placeholder="Search case, event type, or engineer..."
-                  className="w-full bg-slate-950 border border-slate-800 focus:border-sky-500 rounded-lg pl-9 pr-3 py-1.5 text-xs font-mono text-slate-200 placeholder-slate-500 focus:outline-none transition"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              {filteredCases.map((c) => (
-                <div
-                  key={c.id}
-                  className="p-4 rounded-xl bg-slate-900 border border-slate-800 shadow-md space-y-2 text-xs font-mono"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-sky-400">{c.id}</span>
-                      <span className="text-slate-500">•</span>
-                      <span className="text-slate-300 font-semibold">{c.tailNumber} ({c.enginePosition})</span>
-                      <span className="text-slate-500">•</span>
-                      <span className="text-slate-400">{c.eventType.replace(/_/g, " ")}</span>
-                    </div>
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                        c.overallLevel >= 3
-                          ? "bg-rose-950 text-rose-300 border border-rose-800"
-                          : c.overallLevel === 2
-                          ? "bg-amber-950 text-amber-300 border border-amber-800"
-                          : "bg-emerald-950 text-emerald-300 border border-emerald-800"
-                      }`}
-                    >
-                      Action Level {c.overallLevel}
-                    </span>
-                  </div>
-                  <p className="text-slate-300 font-sans text-xs leading-relaxed">{c.summary}</p>
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-[11px] text-slate-400">
-                    <span>Certifying Engineer: <strong className="text-slate-200">{c.engineerName}</strong></span>
-                    <span>Decision: <strong className="text-emerald-400">{c.decision}</strong></span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* TAB 4: EVALUATION */}
-        {/* ========================================================================= */}
-        {dashboardTab === "evaluation" && (
-          <div className="animate-fade-in">
-            <EvaluationView onOpenCitation={onOpenCitation} />
-          </div>
-        )}
       </main>
 
       {/* Incident Simulation Modal */}
@@ -1139,12 +1001,6 @@ export function FleetDashboard({
         onConfirm={onSimulateIncident}
       />
 
-      {/* Live Airworthiness & OEM Search Grounding Modal (gemini-3.8-flash with googleSearch) */}
-      <SearchGroundingModal
-        isOpen={isSearchModalOpen}
-        onClose={() => setIsSearchModalOpen(false)}
-        initialQuery={searchModalInitialQuery}
-      />
 
       {/* CAR-145 RBAC & Engineer Tail Assignment Console */}
       <RBACManagerModal
@@ -1153,9 +1009,12 @@ export function FleetDashboard({
         roster={roster}
         onUpdateEngineerProfile={(p) => onUpdateEngineerProfile?.(p)}
         onAddEngineerProfile={(p) => onAddEngineerProfile?.(p)}
-        onImpersonateProfile={(p) => onSwitchSessionProfile?.(p)}
         currentSession={session}
       />
+
+      <div className="py-2 text-center text-[10px] text-slate-500 font-mono border-t border-slate-900/80 bg-slate-950/40 select-none shrink-0">
+        ILLUSTRATIVE DATA. NOT FOR OPERATIONAL USE. Decision support only. Certifying engineer sign-off required.
+      </div>
     </div>
   );
 }
