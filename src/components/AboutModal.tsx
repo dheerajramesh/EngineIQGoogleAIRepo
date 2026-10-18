@@ -22,7 +22,7 @@ export function AboutModal({ isOpen, onClose }: AboutModalProps) {
               <Cpu className="w-4 h-4" />
             </span>
             <div>
-              <h3 className="text-base font-bold text-white">About EngineIQ Architecture</h3>
+              <h3 className="text-base font-bold text-white">About DhairyaX Architecture</h3>
               <p className="text-xs text-slate-400 font-mono">
                 Cited Decision-Support Copilot for Aircraft Maintenance
               </p>
@@ -41,7 +41,7 @@ export function AboutModal({ isOpen, onClose }: AboutModalProps) {
           {/* Core Non-Negotiable Triad */}
           <div className="space-y-3">
             <h4 className="text-xs font-mono uppercase text-sky-400 font-bold tracking-wider">
-              The EngineIQ Operational Triad
+              The DhairyaX Operational Triad
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">

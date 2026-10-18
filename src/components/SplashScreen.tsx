@@ -16,7 +16,7 @@ export function SplashScreen({ onFinish }: { onFinish: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#070b14]">
       <div className="flex flex-col items-center gap-4 animate-pulse">
-        <img src="/DhairyaX Aviation AI Logo.png" alt="DhairyaX Logo" className="w-48 h-48 object-contain" />
+        <img src="/logo.png" alt="DhairyaX Logo" className="w-48 h-48 object-contain" />
         <h1 className="text-2xl font-bold text-white tracking-widest">DHAIRYAX</h1>
       </div>
     </div>

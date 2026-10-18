@@ -359,16 +359,12 @@ export function FleetDashboard({
       <header className="h-16 bg-slate-950/95 border-b border-slate-800 px-4 sm:px-6 flex items-center justify-between z-20 shrink-0">
         {/* Brand */}
         <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#001b94] via-[#0284c7] to-sky-400 p-0.5 shadow-lg shadow-blue-900/40 shrink-0">
-            <div className="w-full h-full bg-[#070e24] rounded-[10px] flex flex-col items-center justify-center text-white">
-              <span className="font-mono font-black text-xs leading-none tracking-tighter text-sky-400">6E</span>
-              <span className="font-mono text-[8px] uppercase tracking-widest text-slate-300">M&E</span>
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#001b94] via-[#0284c7] to-sky-400 p-0.5 shadow-lg shadow-blue-900/40 shrink-0 hidden">
             </div>
-          </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-base font-extrabold tracking-tight text-white font-sans">
-                IndiGo <span className="text-sky-400">EngineIQ</span>
+                DhairyaX
               </h1>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-sky-950 text-sky-400 border border-sky-800">
                 Line Ops & Twin

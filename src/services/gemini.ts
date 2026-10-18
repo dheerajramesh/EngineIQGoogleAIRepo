@@ -634,7 +634,7 @@ function getOfflineSearchGroundingFallback(query: string): GeminiSearchGrounding
 
 2. **Fan Drive Gear System (FDGS) Torque & Vibration Verification:**
    - If bird remains enter core flow or LP compressor, perform oil scavenge magnetic chip detector (MCD) inspection and FDGS oil filter differential pressure check.
-   - Dual-channel vibration telemetry review via EngineIQ dashboard before dispatch.
+   - Dual-channel vibration telemetry review via DhairyaX dashboard before dispatch.
 
 3. **Regulatory Sign-off:**
    - DGCA India CAR Section 2 Series E requires CRS (Certificate of Release to Service) entry with blend dimensions and remaining thickness measurement.
@@ -1042,7 +1042,7 @@ function getOfflinePartAskFallback(
 
   const text = `${answer}
 
-Notice: Synthesized from EngineIQ On-Wing Knowledge Engine and Pratt & Whitney GTF technical manuals. Certifying engineer sign-off strictly required.`;
+Notice: Synthesized from DhairyaX On-Wing Knowledge Engine and Pratt & Whitney GTF technical manuals. Certifying engineer sign-off strictly required.`;
 
   return { text, sources, searchQueries };
 }
@@ -1284,7 +1284,7 @@ Certifying engineer sign-off strictly required.`;
 
     text = `### Live CAR-145 / Part-145 MRO Roster & Tail Assignments
 
-EngineIQ enforces 3-tier Role-Based Access Control benchmarked against **Swiss-AS AMOS** and **Airbus Skywise**:
+DhairyaX enforces 3-tier Role-Based Access Control benchmarked against **Swiss-AS AMOS** and **Airbus Skywise**:
 
 ${engineerRows}
 

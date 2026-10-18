@@ -1032,7 +1032,7 @@ export default function App() {
       {/* 2. Persistent Navigation Header & Engine Context Strip */}
       <header className={`h-14 border-b px-3 sm:px-4 flex items-center justify-between z-20 shrink-0 transition-colors duration-300 ${theme === "light" ? "bg-white/95 border-slate-200" : "bg-slate-950/90 border-slate-800"}`}>
         <div className="flex items-center gap-3 sm:gap-5">
-          <img src="/DhairyaX Aviation AI Logo.png" alt="DhairyaX" className="w-8 h-8 object-contain" />
+          <img src="/logo.png" alt="DhairyaX" className="w-8 h-8 object-contain" />
           {/* Back to Flight Operations Button (Icon only) */}
           <button
             id="btn-back-to-fleet"

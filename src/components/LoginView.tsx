@@ -171,17 +171,13 @@ export function LoginView({ onLogin, theme, onToggleTheme, roster = [] }: LoginV
           {/* Airline Branding Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800/80">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#001b94] via-[#0284c7] to-sky-400 p-0.5 shadow-xl shadow-blue-900/40 shrink-0">
-                <div className="w-full h-full bg-[#070e24] rounded-[14px] flex flex-col items-center justify-center text-white">
-                  <span className="font-mono font-black text-lg leading-none tracking-tighter text-sky-400">6E</span>
-                  <span className="font-mono text-[9px] uppercase tracking-widest text-slate-300">M&E</span>
-                </div>
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#001b94] via-[#0284c7] to-sky-400 p-0.5 shadow-xl shadow-blue-900/40 shrink-0 hidden">
               </div>
 
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-xl sm:text-2xl font-extrabold tracking-tight text-white font-sans">
-                    IndiGo <span className="text-sky-400">EngineIQ</span>
+                    DhairyaX
                   </span>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-sky-950 text-sky-400 border border-sky-800/80 font-bold">
                     v2.4 MRO

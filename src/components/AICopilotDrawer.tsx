@@ -224,7 +224,7 @@ export function AICopilotDrawer({
       {
         id: "welcome-msg",
         role: "assistant",
-        content: `Welcome to the **EngineIQ Live AI Copilot**. Every question is routed through our **Multi-Provider Live AI Engine** (**Groq GPT-OSS 120B / Qwen 3.8** + **Google Gemini Free-Tier Cascade**) with full access to:\n• **IndiGo Fleet Telemetry:** All 8 flights, 16 PW1100G-JM engines, open Red/Amber cases, and CRS dispatch certificates\n• **AMM & Repair Library:** Chapter 72 & 79 damage limits, boroblend thresholds, and torque specs [DEMO-AMM-72-01] [DEMO-AMM-72-02]\n• **CAR-145 RBAC Roster & Live Regulatory Directives:** Engineer tail assignments and FAA/EASA Airworthiness Directives.\n\nSelect your preferred AI provider above or ask any question below.`,
+        content: `Welcome to the **DhairyaX Live AI Copilot**. Every question is routed through our **Multi-Provider Live AI Engine** (**Groq GPT-OSS 120B / Qwen 3.8** + **Google Gemini Free-Tier Cascade**) with full access to:\n• **IndiGo Fleet Telemetry:** All 8 flights, 16 PW1100G-JM engines, open Red/Amber cases, and CRS dispatch certificates\n• **AMM & Repair Library:** Chapter 72 & 79 damage limits, boroblend thresholds, and torque specs [DEMO-AMM-72-01] [DEMO-AMM-72-02]\n• **CAR-145 RBAC Roster & Live Regulatory Directives:** Engineer tail assignments and FAA/EASA Airworthiness Directives.\n\nSelect your preferred AI provider above or ask any question below.`,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         contextLabel: "Multi-Provider Live AI Ready",
         suggestedActions: [
@@ -437,7 +437,7 @@ export function AICopilotDrawer({
     rbac: [
       "Who is assigned to each aircraft tail in the CAR-145 RBAC roster?",
       "Which flights have a signed CRS certificate and which are still locked?",
-      "How does EngineIQ's 3-tier RBAC compare to Swiss-AS AMOS and Airbus Skywise?",
+      "How does DhairyaX's 3-tier RBAC compare to Swiss-AS AMOS and Airbus Skywise?",
     ],
     regulatory: [
       "Latest FAA and EASA Airworthiness Directives on PW1100G powder metal HPC/HPT disks",
@@ -472,7 +472,7 @@ export function AICopilotDrawer({
             <div>
               <div className="flex items-center gap-2">
                 <h2 id="copilot-drawer-title" className="text-sm sm:text-base font-bold text-white tracking-tight">
-                  EngineIQ AI Copilot & Fleet Q&A
+                  DhairyaX AI Copilot & Fleet Q&A
                 </h2>
               </div>
               <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-mono mt-0.5">
@@ -609,7 +609,7 @@ export function AICopilotDrawer({
                 <span className="font-semibold text-slate-300">
                   {msg.role === "user"
                     ? `${session.name.split(" ")[0]} (${session.role})`
-                    : "EngineIQ Copilot"}
+                    : "DhairyaX Copilot"}
                 </span>
                 <span>·</span>
                 <span className="tabular-nums">{msg.timestamp}</span>
