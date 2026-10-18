@@ -600,7 +600,7 @@ app.post("/api/gemini/extract", async (req, res) => {
     } = req.body;
 
     const systemInstruction =
-      "You are an expert aerospace maintenance data extractor for EngineIQ. " +
+      "You are an expert aerospace maintenance data extractor for DhairyaX. " +
       "Extract structured fields from an engine incident report. Return ONLY valid JSON matching the schema. " +
       "Do not judge severity or airworthiness. If a value isn't stated in the narrative or measurements, use null and list it in missingInfo. " +
       "Never decide whether a measurement is within limits, and never state an engine is fit to fly or airworthy. " +
@@ -759,7 +759,7 @@ app.post("/api/gemini/part-ask", async (req, res) => {
     const { partData, question, snippets, preferredProvider } = req.body;
 
     const systemInstruction =
-      "You are an expert aerospace propulsion copilot for EngineIQ and IndiGo Airlines engineering. " +
+      "You are an expert aerospace propulsion copilot for DhairyaX and IndiGo Airlines engineering. " +
       "Answer questions about this specific aircraft engine component using the provided part specifications, local maintenance manual snippets, and regulatory knowledge (FAA Airworthiness Directives, EASA Emergency Directives, DGCA regulations, and Pratt & Whitney PW1100G-JM Service Bulletins). " +
       "When citing local AMM/FCOM documentation, use square brackets like [DEMO-AMM-72-01]. " +
       "When citing regulatory or OEM documents, cite their official reference number (e.g. [FAA AD 2024-0014] or [SB PW1100G-JM-72-0123]). " +
@@ -898,7 +898,7 @@ app.post("/api/gemini/search-grounded-intel", async (req, res) => {
     const { query, context, preferredProvider } = req.body;
 
     const systemInstruction =
-      "You are an expert aerospace maintenance and airworthiness intelligence assistant for EngineIQ and IndiGo Airlines engineering. " +
+      "You are an expert aerospace maintenance and airworthiness intelligence assistant for DhairyaX and IndiGo Airlines engineering. " +
       "Provide authoritative, up-to-date information on FAA Airworthiness Directives (ADs), EASA Emergency ADs, DGCA India regulatory notices, Pratt & Whitney PW1100G-JM Service Bulletins (SBs), and OEM propulsion engineering updates. " +
       "Provide factual, technical answers with clear bullet points, referencing relevant AD numbers, service bulletins, and inspection thresholds. " +
       "Always conclude with: 'Certifying engineer sign-off required prior to operational aircraft release.'";
@@ -966,7 +966,7 @@ app.post("/api/gemini/copilot-chat", async (req, res) => {
     } = req.body;
 
     const systemInstruction =
-      "You are the EngineIQ Unified MRO & Propulsion AI Copilot for IndiGo Airlines engineering (Airbus A320neo / A321neo with Pratt & Whitney PW1100G-JM Geared Turbofan engines). " +
+      "You are the DhairyaX Unified MRO & Propulsion AI Copilot for IndiGo Airlines engineering (Airbus A320neo / A321neo with Pratt & Whitney PW1100G-JM Geared Turbofan engines). " +
       "You answer the engineer's specific question directly, dynamically, and conversationally across three integrated domains:\n" +
       "1. LIVE FLEET & FLIGHT STATUS: Use the provided Live Fleet Snapshot (8 flights, 16 engines, open Red/Amber cases, LLP cycle margins, CRS dispatch releases, and CAR-145 RBAC engineer assignments) to give exact, real-time answers.\n" +
       "2. AMM TROUBLESHOOTING & REPAIR LIMITS: Use the provided AMM/FCOM/Policy reference snippets to explain damage limits, boroblend thresholds, torque procedures, and inspection intervals. Cite local documents in square brackets like [DEMO-AMM-72-01], [DEMO-AMM-72-02], [DEMO-AMM-79-01], [DEMO-FCOM-70-01], [DEMO-PRC-05-10], or [DEMO-POL-01].\n" +
@@ -1064,7 +1064,7 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`EngineIQ server running on http://localhost:${PORT}`);
+    console.log(`DhairyaX server running on http://localhost:${PORT}`);
   });
 }
 

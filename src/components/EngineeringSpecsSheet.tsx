@@ -366,6 +366,33 @@ export function EngineeringSpecsSheet({
           </table>
         </div>
       </div>
+      {/* Manufacturer Support Contact */}
+      <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-3">
+        <div className="flex items-center gap-2">
+          <Info className="w-4 h-4 text-sky-400" />
+          <h3 className="text-sm font-bold text-white font-mono uppercase tracking-wide">
+            Manufacturer Support Contact (OEM)
+          </h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
+            <span className="text-[10px] text-slate-500 uppercase block">Pratt & Whitney GTF Support</span>
+            <span className="text-sm font-bold text-slate-200">Customer Engineering Team (CET)</span>
+            <div className="text-xs text-sky-400 mt-1 font-mono">
+              <p>Email: gtf.support@prattwhitney.com</p>
+              <p>Phone: +1 860-565-1234 (24/7)</p>
+            </div>
+          </div>
+          <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
+            <span className="text-[10px] text-slate-500 uppercase block">Regional Field Representative</span>
+            <span className="text-sm font-bold text-slate-200">Rahul Varma (Senior FSR)</span>
+            <div className="text-xs text-sky-400 mt-1 font-mono">
+              <p>Email: rahul.varma@pw.utc.com</p>
+              <p>Phone: +91 98765 43210</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

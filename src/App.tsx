@@ -53,6 +53,7 @@ import { FleetDashboard } from "./components/FleetDashboard";
 import { EngineeringSpecsSheet } from "./components/EngineeringSpecsSheet";
 import { TechnicalSpecsCutaway } from "./components/TechnicalSpecsCutaway";
 import { ThemeToggle } from "./components/ThemeToggle";
+import { SplashScreen } from "./components/SplashScreen";
 import { AICopilotDrawer } from "./components/AICopilotDrawer";
 import {
   Compass,
@@ -92,6 +93,7 @@ interface LiveToast {
 
 export default function App() {
   // 1. Session State
+  const [isSplashDone, setIsSplashDone] = useState(false);
   const [session, setSession] = useState<UserSession | null>(() => {
     try {
       const saved = localStorage.getItem("engineiq_session");
@@ -1026,9 +1028,11 @@ export default function App() {
   // Render the Engine Workspace for the currently selected engine
   return (
     <div className={`flex flex-col h-screen w-screen text-slate-100 overflow-hidden font-sans transition-colors duration-300 ${theme === "light" ? "bg-[#f8fafc]" : "bg-[#070b14]"}`}>
+      {!isSplashDone && <SplashScreen onFinish={() => setIsSplashDone(true)} />}
       {/* 2. Persistent Navigation Header & Engine Context Strip */}
       <header className={`h-14 border-b px-3 sm:px-4 flex items-center justify-between z-20 shrink-0 transition-colors duration-300 ${theme === "light" ? "bg-white/95 border-slate-200" : "bg-slate-950/90 border-slate-800"}`}>
         <div className="flex items-center gap-3 sm:gap-5">
+          <img src="/DhairyaX Aviation AI Logo.png" alt="DhairyaX" className="w-8 h-8 object-contain" />
           {/* Back to Flight Operations Button (Icon only) */}
           <button
             id="btn-back-to-fleet"

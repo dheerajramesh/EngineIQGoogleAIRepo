@@ -142,6 +142,12 @@ export interface AircraftEngine {
   location: string; // fictional base, e.g. "Bengaluru (BLR)"
   aircraftType?: string;
   assignedEngineer?: string;
+  manufacturerContact?: {
+    name: string;
+    role: string;
+    email?: string;
+    phone?: string;
+  };
 }
 
 export interface FlightInfo {
