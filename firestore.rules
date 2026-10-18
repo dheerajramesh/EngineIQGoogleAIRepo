@@ -316,7 +316,7 @@ service cloud.firestore {
     // Collection 5: /system_ai_config/{configId} (Platform-Managed AI Runtime Vault)
     // =========================================================================
     match /system_ai_config/{configId} {
-      allow read, write: if true;
+      allow read, write: if isAdmin();
     }
   }
 }

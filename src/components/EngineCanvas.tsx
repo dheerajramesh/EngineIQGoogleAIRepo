@@ -844,40 +844,6 @@ export function EngineCanvas({
         {/* Vertical divider */}
         <div className="h-4 w-px bg-slate-700/80 mx-1 hidden sm:block" />
 
-        {/* 3 View Mode Navigation Buttons moved from bottom footer */}
-        <button
-          id="tab-mode-explore-3d"
-          onClick={() => {
-            onSelectMode?.("explore");
-            onSelectExploreSubView?.("3d");
-          }}
-          className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg transition font-medium ${
-            activeMode === "explore" && exploreSubView === "3d"
-              ? "bg-sky-500 text-white font-bold shadow-md shadow-sky-500/20"
-              : "text-slate-300 hover:text-white hover:bg-slate-800/80"
-          }`}
-          title="3D Engine Digital Twin Assembly"
-        >
-          <Cpu className="w-3.5 h-3.5 text-sky-300" />
-          <span>3D Assembly</span>
-        </button>
-
-        <button
-          id="tab-mode-specs-cutaway"
-          onClick={() => {
-            onSelectMode?.("explore");
-            onSelectExploreSubView?.("specs");
-          }}
-          className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg transition font-medium ${
-            activeMode === "explore" && exploreSubView === "specs"
-              ? "bg-sky-500 text-white font-bold shadow-md shadow-sky-500/20"
-              : "text-slate-300 hover:text-white hover:bg-slate-800/80"
-          }`}
-          title="Engineering Specs & GTF Cutaway Blueprint"
-        >
-          <Ruler className="w-3.5 h-3.5 text-sky-300" />
-          <span>Specs & Cutaway</span>
-        </button>
 
         <button
           id="tab-mode-incident"

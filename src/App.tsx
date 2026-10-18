@@ -1067,17 +1067,6 @@ export default function App() {
                     }`}
                     title={`Switch to ${eng.enginePosition} Engine (${wingLabel})`}
                   >
-                    <span
-                      className={`w-2 h-2 rounded-full shrink-0 ${
-                        isCurrent
-                          ? "bg-white"
-                          : isAction
-                          ? "bg-rose-400 animate-ping"
-                          : isWatch
-                          ? "bg-amber-400"
-                          : "bg-emerald-400"
-                      }`}
-                    />
                     <span>{eng.enginePosition}</span>
                     <span className="text-[10px] opacity-80 font-normal hidden xl:inline">({wingLabel})</span>
                     <span
@@ -1099,31 +1088,7 @@ export default function App() {
             </div>
 
             {/* Status Pill Badge */}
-            <span
-              className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase hidden md:inline-flex items-center gap-1 ${
-                currentEngine.status === "action_required"
-                  ? "bg-rose-950 text-rose-300 border border-rose-700"
-                  : currentEngine.status === "watch"
-                  ? "bg-amber-950 text-amber-300 border border-amber-700"
-                  : "bg-emerald-950 text-emerald-300 border border-emerald-700"
-              }`}
-            >
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${
-                  currentEngine.status === "action_required"
-                    ? "bg-rose-400 animate-ping"
-                    : currentEngine.status === "watch"
-                    ? "bg-amber-400"
-                    : "bg-emerald-400"
-                }`}
-              />
-              {currentEngine.status.replace("_", " ")}
-            </span>
 
-            {/* Station Chip */}
-            <span className="text-[10px] font-mono text-slate-400 hidden xl:inline">
-              Base: {currentEngine.location}
-            </span>
 
             {/* Segmented Switch: 3D | Cutaway | Specs */}
             <div className="hidden xl:inline-flex items-center p-1 bg-slate-900/90 rounded-xl border border-slate-800 text-xs font-mono shadow-sm ml-2">
